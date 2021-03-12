@@ -1,9 +1,10 @@
 import os
 import argparse
-from visprocess import visprocess
-from envs import MappingEnvironment, LocalISM, RangeISM
-from agents.DDDQN.DDDQN_agent import DDDQN_agent
-
+#from visprocess import visprocess
+#from envs import MappingEnvironment, LocalISM, RangeISM
+#from agents.DDDQN.DDDQN_agent import DDDQN_agent
+import render_UUV_env as env3D
+print("asd")
 
 def parse():
     parser = argparse.ArgumentParser(description="MLDS&ADL HW3")
@@ -31,6 +32,8 @@ def parse():
                         help='visualize what the network learned with Guided GradCAM')
     parser.add_argument('--num_frames', type=int, default=80,
                         help='how many frames have to be stored in the prozessed video')
+    parser.add_argument('--beams', type=int, default=20,
+                        help='how many beams has the sensor')
     try:
         from argument import add_arguments
         parser = add_arguments(parser)
@@ -39,6 +42,11 @@ def parse():
     args = parser.parse_args()
     return args
 
+def run_render(args):
+    #Init render
+
+    env3D.init_render(args)
+    return
 
 def run(args):
     # Initialize sensor
@@ -96,4 +104,8 @@ if __name__ == '__main__':
     args = parse()
     # make path
     os.makedirs(args.networkPath, exist_ok=True)
-    run(args)
+    if (not args.do_render):
+        print("-----------------------------not rendering-----------------------------\n")
+        run(args)
+    else:
+        run_render(args)

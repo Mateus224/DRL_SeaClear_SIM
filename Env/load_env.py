@@ -11,7 +11,7 @@ import pandas as pd
 
 
 #def load_VM(pc='xyz_env/1.xyz'):
-def load_VM(pc='xyz_env/output.xyz'):
+def load_VM(pc='Env/xyz_env/output.xyz'):
 
     #cloud=PyntCloud(pd.DataFrame(Cloud, columns=["x","y","z"]))
     cloud = PyntCloud.from_file(pc,
