@@ -1,164 +1,200 @@
-import pytransform3d_.visualizer as pv
+import numpy as np
+import random
+from Env.load_env import Load_env
 from pytransform3d_.rotations import *
-from pytransform3d_.transformations import *
-from pytransform3d_.batch_rotations import *
-import open3d as o3d
-from pytransform3d.plot_utils import plot_box
-import load_env as env
-import sys
-import os
-
-
-def rotation_matrix_from_vectors(vec1, vec2):
-    """ Find the rotation matrix that aligns vec1 to vec2
-    :param vec1: A 3d "source" vector
-    :param vec2: A 3d "destination" vector
-    :return mat: A transform matrix (3x3) which when applied to vec1, aligns it with vec2.
-    """
-    a, b = (vec1 / np.linalg.norm(vec1)).reshape(3), (vec2 / np.linalg.norm(vec2)).reshape(3)
-    v = np.cross(a, b)
-    c = np.dot(a, b)
-    s = np.linalg.norm(v)
-    kmat = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
-    rotation_matrix = np.eye(3) + kmat + kmat.dot(kmat) * ((1 - c) / (s ** 2))
-    return rotation_matrix
-
-
-def animation_callback(step, n_frames, frame, frame_debug, uuv, beams):
-    angle = 2.0 * np.pi * (step + 1) / n_frames
-    Base_uuv_q = quaternion_from_axis_angle([0,0,1, -3 * np.pi / 2])
-    R3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
-    R_q=quaternion_from_axis_angle([0,1,0, angle])
-    new_q= concatenate_quaternions(Base_uuv_q, R_q)
-
-
-    R2=rotation_matrix_from_vectors([1,1,1], [0,0,-1])
-
-
-    R1 =matrix_from_quaternion(new_q)
-    R2=np.matmul(R1,R2)
-
-    R = matrix_from_angle(0, angle)
-    A2B = np.eye(4)
-    A2B[:3, :3] = R
-    A2B[2,3]=6
-    A2B[1, 3] = 20
-    A2B[0, 3] = 6+step
-    point=[5+(step/10), 20, 6]
-    point2 = [24, -0.49, 8]
-    A2UUV = transform_from(R1, point)
-    Sensor =transform_from(R2, point)
-    Frame = transform_from(R1, point)
-    Frame_debug=transform_from(R3, point2)
-    frame_debug.set_data(Frame_debug)
-    frame.set_data(Frame)
-
-    uuv.set_data(A2UUV)
-    animate_sensor(beams, step, Sensor)
-    return frame, frame_debug, uuv, beams
 
 
 
+def safe_log(x):
+    if x <= 0.:
+        return 0.
+    return np.log(x)
 
-def init_animate_sensor(fig, beams_i):
-    R=matrix_from_axis_angle([0,0,1, -3 * np.pi / 2])
-    R=[[1,0,0],[0,1,0],[0,0,1]]
-    P = np.zeros((20, 3))
-    colors = np.empty((19, 3))
-    for d in range(colors.shape[1]):
-        P[:, d] = np.linspace(0, 10, len(P))
-        colors[:, d] = np.linspace(0, 1, len(colors))
 
-    eye=np.eye(4)
-    eye[:3,:3]=R
-    lines = list()
-    for x in range(beams_i):
-        lines.append(fig.plot(P, eye, colors))
+safe_log = np.vectorize(safe_log)
 
-    fig.view_init()
+class Pose:
+    def __init__(self, x=0, y=0, z=0, orientation=0):
+        self.x = x
+        self.y = y
+        self.z = z
+        self.orientation = orientation
 
-    return fig, lines
 
-def animate_sensor(beams,  step, A2B):
-    t = step*10
-    P = np.empty((20, 3))
-    A2C=np.eye(4)
-    A2C[:, 3] = A2B[:, 3]
-    for d in range(P.shape[1]):
-        P[:, d] = np.linspace(0, 10, len(P))
-    for i in range(len(beams)):
-        if(.5*len(beams)<i):
-            A2C[:3, :3] = np.matmul(matrix_from_axis_angle([1, 0, 0, -i*0.0055555]), A2B[:3, :3])
+class LocalISM(object):
+    def __init__(self, map, span=1, p_correct=.9):
+        self.map = map
+        self.N = self.map.shape[0]
+        self.span = span
+        self.p_correct = p_correct
+
+    def log_odds(self, pose):
+        l = np.zeros((self.N, self.N))
+        x_low, x_high = max(pose.x - self.span, 0), min(pose.x + self.span,
+                                                        self.N - 1)  # absolut sensor distance in x coordinates
+        y_low, y_high = max(pose.y - self.span, 0), min(pose.y + self.span, self.N - 1)
+        for i in range(x_low, x_high + 1):
+            for j in range(y_low, y_high + 1):
+                if random.random() < self.p_correct:
+                    if self.map[i, j] == 0:
+                        l[i, j] = np.log((1 - self.p_correct) / self.p_correct)
+                    else:
+                        l[i, j] = np.log(self.p_correct / (1 - self.p_correct))
+                else:
+                    if self.map[i, j] == 1:
+                        l[i, j] = np.log((1 - self.p_correct) / self.p_correct)
+                    else:
+                        l[i, j] = np.log(self.p_correct / (1 - self.p_correct))
+        l[pose.x, pose.y] = -float("inf")
+
+        return l
+
+
+class sonarModel(object):
+    def __init__(self, map, beams=20, beamWidth=1, min_error=0.05, accuracy=0.01):
+        self.map = map
+        self.beams = beams                     # how many beams are simulated
+        self.beamWidth = (beamWidth*np.pi)/180 # convert into radiant
+        self.min_error = min_error
+        self.accuracy = accuracy
+        #probability = if 1-e^(x*accuracy)-(1-min_error)<0.5
+
+    def log_odds(self, pos):
+        log_odd_map = np.zeros((self.map[0], self.map[1], self.map[2]))
+
+        ##get the Beam points
+
+
+
+
+        return log_odd_map
+
+
+
+
+
+
+
+
+class MapEnv(object):
+    def __init__(self, pos, xn=70, yn=70, zn=30, p=.1, episode_length=1000, prims=False, randompose=True):
+        self.movie = Movie()
+        self.ism_proto = ism_proto
+        self.p = p
+        self.xn=xn
+        self.yn = yn
+        self.zn = zn
+
+        self.episode_length = episode_length
+        self.prims = False
+
+        self.pq = init_position(x=0,y=0,z=0) # position / quaternion
+        self.pos=[]
+        self.t = None
+        self.viewer = None
+        self.ent = None
+
+    def init_pose(self,x,y,z):
+        rotation_m=matrix_from_euler_xyz(x,y,z)
+        pq=quaternion_from_matrix(rotation_m)
+        return pq
+
+
+    def colision_detection(self):
+
+        return
+
+
+    def reset(self):
+        # generate new map
+        random_map=np.random.randint(0, 2)
+        voxel_map=env.load_VM(random_map,self.xn,self.yn,self.zn)
+        voxel_map=env.hashmap
+
+        # generate initial pose
+        if self.random_pose:
+            self.x0, self.y0 self.z0= np.random.randint(0, self.N), np.random.randint(0, self.N), p.random.randint(0, self.N)
         else:
-            A2C[:3, :3] = np.matmul(matrix_from_axis_angle([1, 0, 0, (i-.5*len(beams)) * 0.0055555]), A2B[:3, :3])
-        beams[i].set_data(P, A2C.copy())
-    return beams
+            self.x0, self.y0, self.z0 = 0, 0, 0
+        self.pose = Pose(self.x0, self.y0, 0)
+        self.map[self.x0, self.y0] = 0
+
+        # reset inverse sensor model, likelihood and pose
+        self.ism = self.ism_proto(self.map)
+        self.l_t = np.zeros((self.N, self.N))
+        self.t = 0
+
+        return self.get_observation()
 
 
 
-def init_env():
-    BASE_DIR = "../Mashes/"
-    data_dir = BASE_DIR
-    search_path = "."
-    while (not os.path.exists(data_dir) and
-           os.path.dirname(search_path) != "pytransform3d"):
-        search_path = os.path.join(search_path, "..")
-        data_dir = os.path.join(search_path, BASE_DIR)
-    fig = pv.figure(width=500, height=500)
-    frame = fig.plot_basis(R=np.eye(3), s=2)
-    frame_debug = fig.plot_basis(R=np.eye(3), s=2)
-    R = matrix_from_angle(2,3*np.pi/2)
-    A2C = np.eye(4)
-    A2C[:3, :3] = R
-    uuv = pv.Mesh("../Mashes/uuv.stl",s=[0.3,0.225,0.3], c=[0.4,0.3,0.2])
-    uuv.add_artist2(fig)
-    uuv.add_artist(fig)
+    def in_map(self, x, y, z):
+        return x >= 0 and y >= 0 and x < self.N and y < self.N
 
-    return fig, uuv, frame, frame_debug
+    def legal_change_in_pose(self, pose, dx, dy):
+        return self.in_map(pose.x + dx, pose.y + dy) and self.map[pose.x + dx, pose.y + dy] == 0
 
+    def logodds_to_prob(self, l_t):
+        return 1 - 1. / (1 + np.exp(l_t))
 
-def build_env(fig):
+    def calc_entropy(self, l_t):
+        p_t = self.logodds_to_prob(l_t)
+        entropy = - (p_t * safe_log(p_t) + (1 - p_t) * safe_log(1 - p_t))
 
-    voxel = env.load_VM()
-    for xInd, X in enumerate(voxel):
-        for yInd, Y in enumerate(X):
-            for zInd, Z in enumerate(Y):
-                if(Z==1):
-                    vox = np.array([[1, 0, 0, xInd], [0, 1, 0, yInd], [0, 0, 1, zInd], [0, 0, 0, 1]])
-                    box = pv.Box(size=[1,1,1],A2B=vox, c=[1,0.89,0.707])
-                    box.add_artist(fig)
-                if((xInd  == 0) and (yInd  == 0)):
-                    wall = np.array([[1, 0, 0, -1], [0, 1, 0,( voxel.shape[1]/2)+.5], [0, 0, 1, (voxel.shape[2]/2)+.5], [0, 0, 0, 1]])
-                    box = pv.Box(size=[1, voxel.shape[1], voxel.shape[2]], A2B=wall)
-                    box.add_artist2(fig)
-                    box.add_artist(fig)
+        return entropy
 
+    def calc_sum_entropy(self, obs):
+        np.sum(obs)
+        return
 
+    def observation_size(self):
+        return 2 * self.N - 1
 
-                    wall = np.array([ [1, 0, 0, (voxel.shape[1] / 2) +.5], [0, 1, 0, -1],[0, 0, 1, (voxel.shape[2] / 2) + .5],[0, 0, 0, 1]])
-                    box = pv.Box(size=[ voxel.shape[0], 1,voxel.shape[2]], A2B=wall)
-                    box.add_artist(fig)
-                    box.add_artist2(fig)
-                if ((xInd == 0) and (yInd == 0)and (zInd == 0)):
-                    wall = np.array(
-                        [[1, 0, 0, (voxel.shape[1] / 2) +.5], [0, 1, 0, (voxel.shape[1] / 2) +.5], [0, 0, 1, -1],
-                         [0, 0, 0, 1]])
-                    box = pv.Box(size=[voxel.shape[0], voxel.shape[1], 1], A2B=wall)
-                    box.add_artist(fig)
-                    box.add_artist2(fig)
+    def get_observation(self):
+        augmented_p = float("inf") * np.ones((3 * self.N - 2, 3 * self.N - 2))
+        augmented_p[self.N - 1:2 * self.N - 1, self.N - 1:2 * self.N - 1] = self.l_t
+        obs = augmented_p[self.pose.x:self.pose.x + 2 * self.N - 1, self.pose.y:self.pose.y + 2 * self.N - 1]
+        p = self.logodds_to_prob(obs)
+        self.ent = self.calc_entropy(obs)
+        ent = self.ent
 
-    return fig
+        # # scale p to [-1, 1]
+        p = (p - .5) * 2
+
+        # # scale entropy to [-1, 1]
+        ent /= -np.log(.5)
+
+        ent = (ent - .5) * 2
+        return np.concatenate([np.expand_dims(p, -1), np.expand_dims(ent, -1)], axis=-1)
 
 
+    def step(self, a):
+        # Step time
+        if self.t is None:
+            print("Must call env.reset() before calling step()")
+            return
+        self.t += 1
 
+        # Perform action
+        dx, dy, dr = self.ACTIONS[a]
+        if self.legal_change_in_pose(self.pose, dx, dy):
+            self.pose.x += dx
+            self.pose.y += dy
+            self.pose.orientation = (self.pose.orientation + dr) % 360
 
-if "__file__" in globals():
+        # bayes filter
+        new_l_t = self.l_t + self.ism.log_odds(self.pose)
+        print(new_l_t.shape)
+        # reward is decrease in entropy
+        reward = np.sum(self.calc_entropy(self.l_t)) - np.sum(self.calc_entropy(new_l_t))
 
-    fig, uuv, frame, frame_debug =init_env()
-    beams_i=20
-    fig = build_env(fig)
-    fig, beams = init_animate_sensor(fig, beams_i)
-    n_frames = 100
-    fig.animate(animation_callback, n_frames, fargs=(n_frames, frame, frame_debug, uuv, beams), loop=True)
+        # Check if done
+        done = False
+        if self.t == self.episode_length:
+            done = True
+            self.t = None
 
-    fig.show()
+        self.l_t = new_l_t
+
+        return self.get_observation(), reward, done, None
+

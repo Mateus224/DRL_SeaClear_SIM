@@ -6,7 +6,7 @@ import numpy as np
 import tensorflow as tf
 from collections import deque
 from keras.models import Sequential, Model, load_model
-from keras.layers import Input, Conv3D, Flatten, Dense, LeakyReLU, Multiply, Lambda
+from keras.layers import Input, Convolution2D, Flatten, Dense, LeakyReLU, Multiply, Lambda
 from keras.optimizers import RMSprop, Adam
 import keras.backend as K
 from keras.layers import Lambda
@@ -34,12 +34,10 @@ class DDDQN_agent(Agent):
 
 
         # parameters
-        self.frame_x = env.xn
-        self.frame_y = env.yn
-        self.frame_z = env.zn
-        self.pose=env.pose
-        #self.num_steps = args.num_steps
-        self.state_length = 1
+        self.frame_width = env.observation_size()
+        self.frame_height = env.observation_size()
+        self.num_steps = args.num_steps
+        self.state_length = 2
         self.gamma = args.gamma
         self.exploration_steps = args.exploration_steps
         self.initial_epsilon = args.initial_epsilon
@@ -60,7 +58,6 @@ class DDDQN_agent(Agent):
         self.ddqn = args.ddqn
         self.dueling = args.dueling
 
-
         if args.optimizer.lower() == 'adam':
             self.opt = Adam(lr=self.learning_rate)
         else:
@@ -69,7 +66,7 @@ class DDDQN_agent(Agent):
         # environment setting
 
         self.env = env
-        self.num_actions = 12
+        self.num_actions = env.num_actions()
 
         self.epsilon = self.initial_epsilon
         self.epsilon_step = (self.initial_epsilon - self.final_epsilon) / self.exploration_steps
@@ -156,12 +153,11 @@ class DDDQN_agent(Agent):
 
     def build_network(self):
         # Consturct model
-        input_voxel_frame = Input(shape=(self.frame_x, self.frame_y,self.frame_z, 1))
-        input_pose_frame = Input(shape=6)
+        input_frame = Input(shape=(self.frame_width, self.frame_height,self.state_length))
         action_one_hot = Input(shape=(self.num_actions,))
-        conv1 = Conv3D(32, kernel_size=(6, 6, 6),  activation='relu')(input_voxel_frame)
-        conv2 = Conv3D(64, (4, 4, 4),  activation='relu')(conv1)
-        conv3 = Conv3D(64, (2, 2, 2), activation='relu')(conv2)
+        conv1 = Convolution2D(32, (8, 8), strides=(4, 4), activation='relu')(input_frame)
+        conv2 = Convolution2D(64, (4, 4), strides=(2, 2), activation='relu')(conv1)
+        conv3 = Convolution2D(64, (3, 3), strides=(1, 1), activation='relu')(conv2)
         flat_feature = Flatten()(conv3)
         hidden_feature = Dense(512)(flat_feature)
         lrelu_feature = LeakyReLU()(hidden_feature)

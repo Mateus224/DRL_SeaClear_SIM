@@ -633,6 +633,10 @@ try:
             self.A2B = None
 
             self.set_data(P, A2B, c)
+        
+        def  get_line_coordinate(self, line_index):
+        	coordinates = self.line_set.get_line_coordinate(line_index)
+        	return coordinates
             
 
         def set_data(self, P, A2B, c=None):
