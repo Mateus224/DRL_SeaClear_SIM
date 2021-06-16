@@ -1,14 +1,15 @@
 import numpy as np
 from pyntcloud import PyntCloud
 import csv
+import random
 
 class Load_env():
     """"This class loads and preprocess the
     simulated environment"""
-    def __init__(self, xn, yn ,zn):
-        self.xn=xn
-        self.yn=yn
-        self.zn=zn
+    def __init__(self, env_shape):
+        self.xn=env_shape[0]
+        self.yn=env_shape[1]
+        self.zn=env_shape[2]
         self.hashmap = {}
 
     def store_as_Hash_map(self, voxel):
@@ -19,9 +20,9 @@ class Load_env():
         for xInd, X in enumerate(voxel):
             for yInd, Y in enumerate(X):
                 for zInd, Z in enumerate(Y):
-                    if Z == 1:
+                    if (Z == 1 or Z == 0.5):
                         hashkey = 1000000*xInd+1000*yInd+zInd
-                        self.hashmap[hashkey] = 1
+                        self.hashmap[hashkey] = Z
 
 
 
@@ -39,15 +40,16 @@ class Load_env():
         x_cords = voxelgrid.voxel_x
         y_cords = voxelgrid.voxel_y
         z_cords = voxelgrid.voxel_z
-        voxel = np.zeros((80, 80, 32))
+        voxel = np.zeros((self.xn, self.yn, self.zn))
 
         for x, y, z in zip(x_cords, y_cords, z_cords):
             voxel[x][y][z] = 1
+            
         minimum= self.search_minimum(voxel)
         voxel= self.shift_to_minimum(voxel, minimum)
         self.store_as_Hash_map(voxel)
 
-        return voxel
+        return voxel, self.hashmap
 
     def search_minimum(self, voxel):
         tmp=10000
@@ -63,9 +65,11 @@ class Load_env():
         for xInd, X in enumerate(voxel):
             for yInd, Y in enumerate(X):
                 for zInd, Z in enumerate(Y):
-                    if(Z==1):
+                    if(Z==1 or Z==0.5):
                         voxel[xInd, yInd, zInd]=0
                         voxel[xInd, yInd, zInd-minimum]=1
+                        if(random.randint(0,100)<3):
+                            voxel[xInd][yInd][zInd-minimum] = 0.5
                     #if((xInd  == 0) or(yInd  == 0) or(xInd== voxel.shape[0]-1) or(xInd== voxel.shape[1]-1)):
                     #    voxel[xInd, yInd, zInd] = 1
         return voxel
@@ -78,8 +82,6 @@ class Load_env():
             data_array = np.asarray(data, dtype=np.float64)
             data_array = np.delete(data_array, 4, axis=1)
             data_array = np.delete(data_array, 3, axis=1)
-
-            print(data_array.shape)
         return data_array
 
 

@@ -1,6 +1,8 @@
 """Optional 3D renderer based on Open3D's visualizer."""
 import warnings
-try:
+#try:
+if True:
+    print("test")
     import open3d as o3d
     import numpy as np
     from . import rotations as pr
@@ -221,7 +223,7 @@ try:
 
             elev : float, optional (default: 30)
                 Elevation angle in the z plane.
-            """
+            
             vc = self.visualizer.get_view_control()
             pcp = vc.convert_to_pinhole_camera_parameters()
             distance = np.linalg.norm(pcp.extrinsic[:3, 3])
@@ -237,7 +239,7 @@ try:
             pcp.extrinsic = pt.transform_from(  # world2camera
                 R=R_elev_azim_camera2world.T,
                 p=[0, 0, distance])
-            vc.convert_from_pinhole_camera_parameters(pcp)
+            vc.convert_from_pinhole_camera_parameters(pcp)"""
 
         def plot(self, P,A2B, c=(0, 0, 0)):
             """Plot line.
@@ -599,6 +601,16 @@ try:
             for g in self.geometries:
                 figure.remove_geometry(g)
 
+        def remove_artist2(self, figure):
+            """Add artist to figure.
+
+            Parameters
+            ----------
+            figure : Figure
+                Figure to which the artist will be added.
+            """
+            for g in self.geometries:
+                figure.remove_geometry2(g)
         @property
         def geometries(self):
             """Expose geometries.
@@ -1026,7 +1038,7 @@ try:
                 previous_A2B = np.eye(4)
             self.A2B = A2B
 
-            self.mesh.transform(pt.invert_transform(previous_A2B, check=False))
+            self.mesh.transform(pt.invert_transform(previous_A2B, check=True))
             self.mesh.transform(self.A2B)
 
         @property
@@ -1188,5 +1200,5 @@ try:
                 geometries += object.geometries
             return geometries
 
-except ImportError:
-    warnings.warn("3D visualizer is not available. Install open3d.")
+#except ImportError:
+#    warnings.warn("3D visualizer is not available. Install open3d.")

@@ -1,10 +1,8 @@
 import os
 import argparse
-#from visprocess import visprocess
-#from envs import MappingEnvironment, LocalISM, RangeISM
-#from agents.DDDQN.DDDQN_agent import DDDQN_agent
 import render_UUV_env as env3D
-print("asd")
+import run_terminal as env_terminal
+
 
 def parse():
     parser = argparse.ArgumentParser(description="MLDS&ADL HW3")
@@ -48,6 +46,11 @@ def run_render(args):
     env3D.init_render(args)
     return
 
+def run_terminal(args): 
+    env_terminal.init(args)
+    return
+    
+
 def run(args):
     # Initialize sensor
     if args.sensor_type == 'local':
@@ -73,7 +76,7 @@ def run(args):
             visprcess = visprocess(env, args)
             visprcess.visgame(agent)
         else:
-            print("<< test >>\n")
+            print("<< test dd >>\n")
             rewards = []
             for k in range(1000):
                 obs = env.reset()
@@ -104,8 +107,9 @@ if __name__ == '__main__':
     args = parse()
     # make path
     os.makedirs(args.networkPath, exist_ok=True)
-    if (not args.do_render):
+    if (False):#not args.do_render):
         print("-----------------------------not rendering-----------------------------\n")
-        run(args)
+        run_terminal(args)
     else:
+        print("reder")
         run_render(args)
