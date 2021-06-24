@@ -6,7 +6,7 @@ import numpy as np
 import tensorflow as tf
 from collections import deque
 from tensorflow.keras.models import Sequential, Model, load_model
-from tensorflow.keras.layers import Input, Conv3D, Flatten, Dense, LeakyReLU, Multiply, Lambda
+from tensorflow.keras.layers import Input, Conv2D, Flatten, Dense, LeakyReLU, Multiply, Lambda
 from tensorflow.keras.optimizers import RMSprop, Adam
 import tensorflow.keras.backend as K
 from tensorflow.keras.layers import Lambda
@@ -36,7 +36,7 @@ class DDDQN_agent(Agent):
         # parameters
         self.frame_x = env.xn
         self.frame_y = env.yn
-        self.frame_z = env.zn
+        #self.frame_z = env.zn
         self.pose=env.pose
         #self.num_steps = args.num_steps
         self.state_length = 1
@@ -150,18 +150,24 @@ class DDDQN_agent(Agent):
             if 0.005 >= random.random():
                 action = random.randrange(self.num_actions)
             else:
-                print(observation.shape)
+                #print(observation.shape)
 
                 action = np.argmax(self.q_network.predict([np.expand_dims(observation, axis=0), self.dummy_input])[0])
         return action
 
     def build_network(self):
+        
         # Consturct model
-        input_voxel_frame = Input(shape=(self.frame_x, self.frame_y,self.frame_z, 2))
+        input_frame = Input(shape=(self.frame_x, self.frame_y,3))
         action_one_hot = Input(shape=(self.num_actions,))
-        conv1 = Conv3D(32, kernel_size=(6, 6, 6),  activation='relu')(input_voxel_frame)
-        conv2 = Conv3D(64, (4, 4, 4),  activation='relu')(conv1)
-        conv3 = Conv3D(64, (2, 2, 2), activation='relu')(conv2)
+        conv1 = Conv2D(32, (5, 5), strides=(4, 4), activation='relu')(input_frame)
+        conv2 = Conv2D(64, (3, 3), strides=(2, 2), activation='relu')(conv1)
+        conv3 = Conv2D(64, (2, 2), strides=(1, 1), activation='relu')(conv2)
+        #input_voxel_frame = Input(shape=(self.frame_x, self.frame_y,self.frame_z, 2))
+        #action_one_hot = Input(shape=(self.num_actions,))
+        #conv1 = Conv3D(32, kernel_size=(6, 6, 6),  activation='relu')(input_voxel_frame)
+        #conv2 = Conv3D(64, (4, 4, 4),  activation='relu')(conv1)
+        #conv3 = Conv3D(64, (2, 2, 2), activation='relu')(conv2)
         flat_feature = Flatten()(conv3)
         hidden_feature = Dense(512)(flat_feature)
         lrelu_feature = LeakyReLU()(hidden_feature)
@@ -188,7 +194,7 @@ class DDDQN_agent(Agent):
         target_q_value = Lambda(lambda x: K.sum(x, axis=-1, keepdims=True), output_shape=lambda_out_shape)(
             select_q_value_of_action)
 
-        model = Model(inputs=[input_voxel_frame, action_one_hot], outputs=[q_value_prediction, target_q_value])
+        model = Model(inputs=[input_frame, action_one_hot], outputs=[q_value_prediction, target_q_value])
 
         # MSE loss on target_q_value only
         model.compile(loss=['mse', 'mse'], loss_weights=[0.0, 1.0], optimizer=Adam(lr=0.00001))  # self.opt)

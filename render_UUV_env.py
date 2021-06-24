@@ -17,42 +17,54 @@ obs = None
 
 
 
-boxes={}
+hash_box_map={}
 box=None
 
-def update_map(fig, step, obs):
+def update_map(fig, step, belief, update_map):
     global box
-    print(obs[30,30,20,0],obs[30,30,20,1])
-    if step== 2:
-        xInd=3
-        yInd=5
-        zInd=6
-        vox = np.array([[1, 0, 0, xInd], [0, 1, 0, yInd], [0, 0, 1, zInd], [0, 0, 0, 1]])
-        box = pv.Box(size=[1,1,1],A2B=vox, c=[1,0.89,0.707])
-        box.add_artist2(fig)
-    if step==6:
+    for hashkey in update_map:
+        
+        x= int(hashkey / 1000000)
+        y= int((hashkey - (x*1000000))/1000 )
+        z= int(hashkey-(x*1000000)-(y*1000))
+        value=belief[x,y,z]
+        box=hash_box_map.get(hashkey)
         box.remove_artist2(fig)
+        vox = np.array([[1, 0, 0, x], [0, 1, 0, y], [0, 0, 1, z], [0, 0, 0, 1]])
+        box = pv.Box(size=[1,1,1],A2B=vox, c=[1-value,1-value,0.5])
+        box.add_artist2(fig)
+        hash_box_map[hashkey] = box
 
-    return
+
+    return box
 
 def animation_callback1(step, n_frames, frame, frame_debug, uuv, beams, env, agent, fig):
     global obs
     action = agent.make_action(obs)
+    if step % 4:
+        action=8
+        if step % 5:
+            action=8
+    else:
+        action=1
+
+
     obs, reward, done, uuv_pose = env.step(action)
+    belief=env.prob
+    update_map_=env.update_map
     beams=env.sonar_model.render(beams)
-    box=update_map(fig, step, obs)
+    box=update_map(fig, step, belief, update_map_)
     #animate_sensor(15, step, sensor_matrix)
 
 
     reward+= reward
     A2B = np.eye(4)
     A2B[0, 3] = 6+step
-    A2C=np.copy(uuv_pose)
 
-    uuv.set_data(A2C)
-    #uuv.set_data(uuv_pose)
+    uuv.set_data(A2B)
+    uuv.set_data(uuv_pose)
 
-    return uuv, beams#box#frame, frame_debug, uuv, beams
+    return uuv, beams, box#frame, frame_debug, uuv, beams
 
 
 
@@ -152,16 +164,18 @@ def animate_sensor1(beams,  step, A2B):
 
 
 def build_env(fig, env):
-
+    global boxes
     #voxel = env.load_VM()
     voxel=env
     for xInd, X in enumerate(voxel):
         for yInd, Y in enumerate(X):
             for zInd, Z in enumerate(Y):
                 if(Z==1 or Z==0.5):
+                    hashkey = 1000000*xInd+1000*yInd+zInd
                     vox = np.array([[1, 0, 0, xInd], [0, 1, 0, yInd], [0, 0, 1, zInd], [0, 0, 0, 1]])
                     box = pv.Box(size=[1,1,1],A2B=vox, c=[1,0.89,0.707])
                     box.add_artist2(fig)
+                    hash_box_map[hashkey] = box
                     if Z==0.5:
                         box2 = pv.Box(size=[1,1,1],A2B=vox, c=[.5,0.5,.5])
                         box2.add_artist(fig)

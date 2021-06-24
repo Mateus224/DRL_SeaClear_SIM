@@ -11,18 +11,32 @@ class Load_env():
         self.yn=env_shape[1]
         self.zn=env_shape[2]
         self.hashmap = {}
+        self.map_2_5D= np.zeros((self.xn, self.yn, 2))
+
 
     def store_as_Hash_map(self, voxel):
         """Store the voxelmap in a hashmap
         which can handle up to 1000*1000*1000 voxels
         """
-
+        #from PIL import Image
         for xInd, X in enumerate(voxel):
             for yInd, Y in enumerate(X):
+                z_litter=False
                 for zInd, Z in enumerate(Y):
                     if (Z == 1 or Z == 0.5):
                         hashkey = 1000000*xInd+1000*yInd+zInd
                         self.hashmap[hashkey] = Z
+                        self.map_2_5D[xInd,yInd,0]=zInd
+                        if(Z==0.5):
+                            z_litter=True
+                            self.map_2_5D[xInd,yInd,1]=1
+                        elif(Z==1):
+                            if(z_litter):
+                                self.map_2_5D[xInd,yInd,1]=0
+        #self.map_2_5D=self.map_2_5D*4
+        #img = Image.fromarray(self.map_2_5D)
+        #img.show()
+
 
 
 
@@ -64,14 +78,17 @@ class Load_env():
     def shift_to_minimum(self, voxel, minimum):
         for xInd, X in enumerate(voxel):
             for yInd, Y in enumerate(X):
+                tmp=False
                 for zInd, Z in enumerate(Y):
-                    if(Z==1 or Z==0.5):
+                    if(Z==1):
                         voxel[xInd, yInd, zInd]=0
                         voxel[xInd, yInd, zInd-minimum]=1
-                        if(random.randint(0,100)<3):
+                        if(random.randint(0,100)<3):#:(zInd>tmp and xInd==2)
+                            tmp=True
                             voxel[xInd][yInd][zInd-minimum] = 0.5
-                    #if((xInd  == 0) or(yInd  == 0) or(xInd== voxel.shape[0]-1) or(xInd== voxel.shape[1]-1)):
-                    #    voxel[xInd, yInd, zInd] = 1
+                        if(tmp):
+                            voxel[xInd][yInd][zInd-minimum-1] = 0
+                            #voxel[xInd][yInd][zInd-minimum-2] = 0
         return voxel
 
     def readData(self):
