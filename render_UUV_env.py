@@ -4,108 +4,74 @@ from Env.pytransform3d_.transformations import *
 from Env.pytransform3d_.batch_rotations import *
 import open3d as o3d
 from Env.pytransform3d_.plot_utils import plot_box
-#import Env.load_env as env
+
 from Env.load_env import Load_env
 from Env.env3d_1 import SonarModel, MapEnv
 from Agents.DDDQN.DDDQN_agent import DDDQN_agent
 import xxhash
-
+from random import randrange
 import sys
 import os
+import copy
 
 obs = None
 
 
 
 hash_box_map={}
-box=None
-
 def update_map(fig, step, belief, update_map):
-    global box
     for hashkey in update_map:
+        box=hash_box_map.get(hashkey)
+        #if step==0:
+        #    box2=copy.deepcopy(box)
+        
         
         x= int(hashkey / 1000000)
         y= int((hashkey - (x*1000000))/1000 )
         z= int(hashkey-(x*1000000)-(y*1000))
         value=belief[x,y,z]
-        box=hash_box_map.get(hashkey)
-        box.remove_artist2(fig)
-        vox = np.array([[1, 0, 0, x], [0, 1, 0, y], [0, 0, 1, z], [0, 0, 0, 1]])
-        box = pv.Box(size=[1,1,1],A2B=vox, c=[1-value,1-value,0.5])
-        box.add_artist2(fig)
-        hash_box_map[hashkey] = box
+        box.update_color2(fig,[1-value,1-value,0.5])
+        #if step==0:
+        #    box.remove_artist(fig)
+            #vox = np.array([[1, 0, 0, x], [0, 1, 0, y], [0, 0, 1, z], [0, 0, 0, 1]])
+            #box = pv.Box(size=[1,1,1],A2B=vox, c=[1,0.89,0.707])
+        #    box2.add_artist(fig)
+
+        
 
 
-    return box
 
 def animation_callback1(step, n_frames, frame, frame_debug, uuv, beams, env, agent, fig):
     global obs
+    
+
+    #action=randrange(12)
     action = agent.make_action(obs)
-    if step % 4:
-        action=8
-        if step % 5:
-            action=8
+
+    action=randrange(12)
+    action = agent.make_action(obs)
+    if step % 3==0:
+        action=7
+    elif step %3==1:
+        action =8
     else:
-        action=1
-
-
+        action =10
+    action=randrange(1,12)
+    #action=11
+    #print(action)
     obs, reward, done, uuv_pose = env.step(action)
+    
     belief=env.prob
     update_map_=env.update_map
     beams=env.sonar_model.render(beams)
-    box=update_map(fig, step, belief, update_map_)
-    #animate_sensor(15, step, sensor_matrix)
+    uuv.set_data(uuv_pose)
+    update_map(fig, step, belief, update_map_)
 
 
     reward+= reward
-    A2B = np.eye(4)
-    A2B[0, 3] = 6+step
-
-    uuv.set_data(A2B)
-    uuv.set_data(uuv_pose)
-
-    return uuv, beams, box#frame, frame_debug, uuv, beams
 
 
-
-def animation_callback(step, n_frames, frame, frame_debug, uuv, beams, Env, Agent):
-    angle = 2.0 * np.pi * (step + 1) / n_frames
-    Base_uuv_q = quaternion_from_axis_angle([0,0,1, -3 * np.pi / 2])
-    R3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
-    R_q=quaternion_from_axis_angle([0,1,0, angle])
-    new_q= concatenate_quaternions(Base_uuv_q, R_q)
-
-    #R2=rotation_matrix_from_vectors([1,1,1], [0,0,-1])
-
-    R1 =matrix_from_quaternion(new_q)
-    R2=np.matmul(R1,R1)#R2)
-    R = matrix_from_angle(0, angle)
-    A2B = np.eye(4)
-    A2B[:3, :3] = R
-    A2B[2,3]=6
-    A2B[1, 3] = 20
-    A2B[0, 3] = 6+step
-    point=[5+(step/2), 34, 20]
-    point2 = [24, -0.49, 8]
-    A2UUV = transform_from(R1, point)
-    Sensor =transform_from(R2, point)
-    Frame = transform_from(R1, point)
-    Frame_debug=transform_from(R3, point2)
-    frame_debug.set_data(Frame_debug)
-    frame.set_data(Frame)
-    print(A2UUV, "A2UUV")
-
-    uuv.set_data(A2UUV)
-    animate_sensor(beams, step, Sensor)
-    print(beams[1].get_line_coordinate(0)[1][1])
-    print(beams[1].get_line_coordinate(1))
-    print(beams[1].get_line_coordinate(2))
-    print(beams[1].get_line_coordinate(3))
-    print(beams[1].get_line_coordinate(18))
-    print(beams[1].get_line_coordinate(19))
-    print(beams[1].get_line_coordinate(20))
-    print(beams[1].get_line_coordinate(21))
-    return frame, frame_debug, uuv, beams
+    return uuv, beams #frame, frame_debug, uuv, beams
 
 
 
@@ -127,39 +93,6 @@ def init_animate_sensor(fig, beams_i):
     fig.view_init()
 
     return fig, lines
-
-def animate_sensor(beams, sensor_matrix):
-    P = np.empty((beams, 3))
-    A2C=np.eye(4)
-    A2C[:, 3] = A2B[:, 3]
-    for d in range(P.shape[1]):
-        P[:, d] = np.linspace(0, 10, len(P))
-    for i in range(len(beams)):
-        if .5*len(beams) < i:
-            A2C[:3, :3] = np.matmul(matrix_from_axis_angle([1, 0, 0, -i*0.0055555]), A2B[:3, :3])
-        else:
-            A2C[:3, :3] = np.matmul(matrix_from_axis_angle([1, 0, 0, (i-.5*len(beams)) * 0.0055555]), A2B[:3, :3])
-        beams[i].set_data(P, A2C.copy())
-    return beams
-
-def animate_sensor1(beams,  step, A2B):
-    t = step*10
-    P = np.empty((20, 3))
-    A2C=np.eye(4)
-    A2C[:, 3] = A2B[:, 3]
-    for d in range(P.shape[1]):
-        P[:, d] = np.linspace(0, 10, len(P))
-    for i in range(len(beams)):
-        if .5*len(beams) < i:
-            A2C[:3, :3] = np.matmul(matrix_from_axis_angle([1, 0, 0, -i*0.0055555]), A2B[:3, :3])
-        else:
-            A2C[:3, :3] = np.matmul(matrix_from_axis_angle([1, 0, 0, (i-.5*len(beams)) * 0.0055555]), A2B[:3, :3])
-        beams[i].set_data(P, A2C.copy())
-    return beams
-
-
-
-
 
 
 

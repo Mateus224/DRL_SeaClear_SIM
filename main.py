@@ -15,6 +15,7 @@ def parse():
     parser.add_argument('--map_p', type=float, default=.1, help='probability map location is occupied')
     parser.add_argument('--prims', action='store_true', help='prims algorithm for filling in map')
     parser.add_argument('--do_render', action='store_true', help='whether render environment')
+    parser.add_argument('--train', action='store_true', help='train the agent in the terminal')
     parser.add_argument('--episode_length', type=int, default=200, help='length of mapping environment episodes')
     # Sensor
     parser.add_argument('--sensor_type', default='local', help='local | range')
@@ -107,7 +108,7 @@ if __name__ == '__main__':
     args = parse()
     # make path
     os.makedirs(args.networkPath, exist_ok=True)
-    if (False):#not args.do_render):
+    if (args.train):
         print("-----------------------------not rendering-----------------------------\n")
         run_terminal(args)
     else:
