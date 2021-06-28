@@ -146,6 +146,7 @@ class SonarModel(object):
 class MapEnv(object):
     def __init__(self, env_shape, p=.1, episode_length=350, randompose=True):
         self.random_pose=True
+        self.state_pos=np.zeros(7)
         self.p = p
         self.env_shape=env_shape
         self.xn = env_shape[0]
@@ -273,8 +274,10 @@ class MapEnv(object):
         ent = (ent - .5) * 2
         stack=np.concatenate([np.expand_dims(self.real_2_D_map[:,:,0]/self.zn,axis=-1), np.expand_dims(p, axis=-1)], axis=-1)
         belief=np.concatenate((stack,np.expand_dims(ent, axis=-1)), axis=-1)
-        state_pos= self.pose.state_pos() / np.pi
-        state=np.asarray([belief, state_pos])
+        self.state_pos[0:3]=self.pose.pose_matrix[:3,3]/40
+        self.state_pos[3:]= axis_angle_from_matrix(self.pose.pose_matrix[:3,:3])/np.pi
+        print(self.state_pos)
+        state=np.asarray([belief, self.state_pos])
         return state
 
 
