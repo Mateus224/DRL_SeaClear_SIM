@@ -276,7 +276,6 @@ class MapEnv(object):
         belief=np.concatenate((stack,np.expand_dims(ent, axis=-1)), axis=-1)
         self.state_pos[0:3]=self.pose.pose_matrix[:3,3]/40
         self.state_pos[3:]= axis_angle_from_matrix(self.pose.pose_matrix[:3,:3])/np.pi
-        print(self.state_pos)
         state=np.asarray([belief, self.state_pos])
         return state
 
