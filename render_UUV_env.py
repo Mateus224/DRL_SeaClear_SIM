@@ -46,29 +46,21 @@ def animation_callback1(step, n_frames, frame, frame_debug, uuv, beams, env, age
     
 
     #action=randrange(12)
-    action = agent.make_action(obs)
+    if(step<200):
+        action = agent.make_action(obs)
 
-    action=randrange(12)
-    action = agent.make_action(obs)
-    if step % 3==0:
-        action=7
-    elif step %3==1:
-        action =8
-    else:
-        action =10
-    action=randrange(1,12)
-    #action=11
-    #print(action)
-    obs, reward, done, uuv_pose = env.step(action)
-    
-    belief=env.prob
-    update_map_=env.update_map
-    beams=env.sonar_model.render(beams)
-    uuv.set_data(uuv_pose)
-    update_map(fig, step, belief, update_map_)
+        action=randrange(12)
+        action = agent.make_action(obs)
+        obs, reward, done, uuv_pose = env.step(action)
+        
+        belief=env.prob
+        update_map_=env.update_map
+        beams=env.sonar_model.render(beams)
+        uuv.set_data(uuv_pose)
+        update_map(fig, step, belief, update_map_)
 
 
-    reward+= reward
+        reward+= reward
 
 
     return uuv, beams #frame, frame_debug, uuv, beams
@@ -162,7 +154,7 @@ def init_render(args, env_shape=[40, 40, 23], num_beams=15):
     fig, uuv, frame, frame_debug = init_env()
     fig = build_env(fig, voxelVis)
     fig, beams = init_animate_sensor(fig, num_beams)
-    n_frames = 100
+    n_frames = 300
 
 
     Agent = DDDQN_agent(Env, args)
