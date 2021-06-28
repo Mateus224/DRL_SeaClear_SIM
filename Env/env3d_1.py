@@ -1,7 +1,6 @@
 from Env.pytransform3d_.transformations import rotate_transform, transform_from, translate_transform
 import numpy as np
 import random
-from pytransform3d import batch_rotations
 from Env.load_env import Load_env
 from Env.pytransform3d_.rotations import *
 
@@ -14,8 +13,9 @@ def safe_log(x):
 safe_log = np.vectorize(safe_log)
 
 class Pose:
-    def __init__(self, x=0, y=0, z=0, orientation=0):
+    def __init__(self, x=0, y=0, z=0, orientation=[0,0,1,np.pi/2]):
         R= matrix_from_axis_angle([0,0,1, -np.pi/2])
+        R_init=matrix_from_axis_angle(orientation)
         self.pose_matrix= transform_from(R,[x,y,z])
         self.sensor_pose_matrix=None
         self.state_pose=np.zeros(7)
@@ -197,10 +197,14 @@ class MapEnv(object):
 
         # generate initial pose
         if self.random_pose:
-            self.x0, self.y0, self.z0= np.random.randint(0, self.xn), np.random.randint(0, self.yn), np.random.randint(3, self.zn)
+            
+            self.x0, self.y0 = np.random.randint(0, self.xn), np.random.randint(0, self.yn)
+            min_z = self.real_2_D_map[self.x0][self.y0][0]
+            self.z0= np.random.randint(min_z, self.zn)
+            self.rotation=random_axis_angle()
         else:
             self.x0, self.y0, self.z0 = self.xn/2, self.yn/2, self.zn/2
-        self.pose = Pose(self.x0, self.y0, self.z0)
+        self.pose = Pose(self.x0, self.y0, self.z0, self.rotation)
         #sself.map[self.x0, self.y0] = 0
 
         # reset inverse sensor model, likelihood and pose
@@ -230,7 +234,7 @@ class MapEnv(object):
         z = int(new_pos[2])
         hashkey = 1000000*x+1000*y+z
         if hashkey in self.hashmap:
-            print("COLLISION ! ! !")
+            #print("COLLISION ! ! !")
             return True
         else:
             return False
