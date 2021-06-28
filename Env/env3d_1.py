@@ -15,9 +15,15 @@ safe_log = np.vectorize(safe_log)
 
 class Pose:
     def __init__(self, x=0, y=0, z=0, orientation=0):
-        R= matrix_from_axis_angle([0,0,1,  -np.pi/2 ])# np.pi])
+        R= matrix_from_axis_angle([0,0,1, -np.pi/2])
         self.pose_matrix= transform_from(R,[x,y,z])
         self.sensor_pose_matrix=None
+        self.state_pose=np.zeros(7)
+
+    def state_pos(self):
+        self.state_pose[:3]=self.pose_matrix[3,:3]
+        self.state_pose[3:]=axis_angle_from_matrix(self.pose_matrix[:3,:3])
+        return self.state_pose
 
 
 class SonarModel(object):
@@ -33,54 +39,30 @@ class SonarModel(object):
         self.diastance_accuracy=diastance_accuracy
         self.measure_accurancy=measure_accurancy
         self.sensor_matrix=np.zeros((num_beams, int(measure_accurancy.shape[0]), 4,4))
-        self.sensor_matrix_render=np.zeros((num_beams, int(measure_accurancy.shape[0]), 4,4))
         self.belief_map=np.zeros((map.shape[0],map.shape[1],map.shape[2]))
-        #self.log_odds=np.zeros((map.shape[0],map.shape[1]))
         self.update_sensor_matrix=np.zeros((self.num_beams, int(measure_accurancy.shape[0])))
         self.new_l_t=np.zeros((map.shape[0], map.shape[1]))
 
-        
-        #probability = if 1-e^(x*accuracy)-(1-min_error)<0.5
 
-    def init_sensor(self, render=True):
+    def init_sensor(self):
         self.R_render=self.rotation_matrix_from_vectors([1,1,1], [0,0,-1])
         self.sensor_matrix[:,:,:,3]=self.pose.pose_matrix[:, 3]
-        self.sensor_matrix_render[:,:,:,3]=self.pose.pose_matrix[:, 3]
         for i in range(self.num_beams):
             for j in range(self.measure_accurancy.shape[0]):
                 if .5*self.num_beams < i:
- #-------------------------------i-----------------------
-                    self.sensor_matrix[i,j,:3, :3] = np.matmul(matrix_from_axis_angle([1, 0, 0, -(self.num_beams-i)*self.separation]), self.pose.pose_matrix[:3, :3]) 
-                    if.5*self.measure_accurancy.shape[0] < j: 
-                        self.sensor_matrix[i,j,:3, :3]=np.matmul(matrix_from_axis_angle([0, 1, 0, -(self.measure_accurancy.shape[0]-j)*self.beamOpening/self.measure_accurancy.shape[0]]), self.sensor_matrix[i,j,:3, :3]) 
-                    else:
-                        self.sensor_matrix[i,j,:3, :3] = np.matmul(matrix_from_axis_angle([0, 1, 0, j*self.separation]), self.sensor_matrix[i,j,:3, :3])
 
-#-------------------------render-------------------------------
-                    if render:
-                        A2B=np.matmul(self.pose.pose_matrix[:3, :3],self.R_render)
-                        self.sensor_matrix_render[i,j,:3, :3] = np.matmul(matrix_from_axis_angle([1, 0, 0, -(self.num_beams-i)*self.separation]), A2B) 
-                        if.5*self.measure_accurancy.shape[0] < j: 
-                            self.sensor_matrix_render[i,j,:3, :3]=np.matmul(matrix_from_axis_angle([0, 1, 0, -(self.measure_accurancy.shape[0]-j)*self.beamOpening/self.measure_accurancy.shape[0]]), self.sensor_matrix_render[i,j,:3, :3]) 
-                        else:
-                            self.sensor_matrix_render[i,j,:3, :3] = np.matmul(matrix_from_axis_angle([0, 1, 0, j*self.separation]), self.sensor_matrix_render[i,j,:3, :3])
- #-------------------------------i-----------------------
+                    self.sensor_matrix[i,j,:3, :3] = np.matmul(self.pose.pose_matrix[:3, :3], matrix_from_axis_angle([1, 0, 0, -(self.num_beams-i)*self.separation])) 
+                    if.5*self.measure_accurancy.shape[0] < j: 
+                        self.sensor_matrix[i,j,:3, :3]=np.matmul(self.sensor_matrix[i,j,:3, :3], matrix_from_axis_angle([0, 1, 0, -(self.measure_accurancy.shape[0]-j)*self.beamOpening/self.measure_accurancy.shape[0]])) 
+                    else:
+                        self.sensor_matrix[i,j,:3, :3] = np.matmul(self.sensor_matrix[i,j,:3, :3], matrix_from_axis_angle([0, 1, 0, j*self.separation]))
                 else:
-                    self.sensor_matrix[i,j,:3, :3] = np.matmul(matrix_from_axis_angle([1, 0, 0, i*self.separation]), self.pose.pose_matrix[:3, :3]) 
+                    self.sensor_matrix[i,j,:3, :3] = np.matmul(self.pose.pose_matrix[:3, :3], matrix_from_axis_angle([1, 0, 0, i*self.separation]),) 
                     if.5*self.measure_accurancy.shape[0] < j: 
-                        self.sensor_matrix[i,j,:3, :3]=np.matmul(matrix_from_axis_angle([0, 1, 0, -(self.measure_accurancy.shape[0]-j)*self.beamOpening/self.measure_accurancy.shape[0]]), self.sensor_matrix[i,j,:3, :3]) 
+                        self.sensor_matrix[i,j,:3, :3]=np.matmul( self.sensor_matrix[i,j,:3, :3],matrix_from_axis_angle([0, 1, 0, -(self.measure_accurancy.shape[0]-j)*self.beamOpening/self.measure_accurancy.shape[0]])) 
                     else:
-                        self.sensor_matrix[i,j,:3, :3] = np.matmul(matrix_from_axis_angle([0, 1, 0, j*self.separation]), self.sensor_matrix[i,j,:3, :3])
-
-#-------------------------render-------------------------------
-                    if render:
-                        A2B=np.matmul(self.pose.pose_matrix[:3, :3],self.R_render)
-                        self.sensor_matrix_render[i,j,:3, :3] = np.matmul(matrix_from_axis_angle([1, 0, 0, i*self.separation]), A2B)
-                        if.5*self.measure_accurancy.shape[0] < j: 
-                            self.sensor_matrix_render[i,j,:3, :3]=np.matmul(matrix_from_axis_angle([0, 1, 0, -(self.measure_accurancy.shape[0]-j)*self.beamOpening/self.measure_accurancy.shape[0]]), self.sensor_matrix_render[i,j,:3, :3]) 
-                        else:
-                            self.sensor_matrix_render[i,j,:3, :3] = np.matmul(matrix_from_axis_angle([0, 1, 0, j*self.separation]), self.sensor_matrix_render[i,j,:3, :3])
-
+                        self.sensor_matrix[i,j,:3, :3] = np.matmul(self.sensor_matrix[i,j,:3, :3],matrix_from_axis_angle([0, 1, 0, j*self.separation]))
+        self.sensor_matrix_init=self.sensor_matrix.copy()
  
     
     def readSonarData(self):
@@ -140,7 +122,6 @@ class SonarModel(object):
             P[:, d] = np.linspace(0, 10, len(P))
         for i in range(self.sensor_matrix.shape[0]):
             for j in range(self.sensor_matrix.shape[1]):
-                #A2C[:3, :3] =self.sensor_matrix_render[i][j][:3, :3]
                 A2C[:3, :3] =self.sensor_matrix[i][j][:3, :3]
                 A2C[:3, :3]=np.matmul(A2C[:3, :3],self.R_render[:3, :3])
                 beams[self.sensor_matrix.shape[1]*i+j].set_data(P, A2C.copy())
@@ -162,27 +143,27 @@ class SonarModel(object):
         return rotation_matrix
 
 
-        ##get the Beam points
 class MapEnv(object):
-    def __init__(self, env_shape, p=.1, episode_length=1000, randompose=True):
-        self.random_pose=False
+    def __init__(self, env_shape, p=.1, episode_length=350, randompose=True):
+        self.random_pose=True
         self.p = p
         self.env_shape=env_shape
         self.xn = env_shape[0]
         self.yn = env_shape[1]
         self.zn = env_shape[2]
+        self.rad=np.deg2rad(15)
         self.ACTIONS = np.array([[0.5, 0, 0, 0, 0, 0],
                    [-0.5, 0, 0, 0, 0, 0],
                    [0, 0.5, 0,  0, 0, 0],
                    [0, -0.5, 0, 0, 0, 0],
                    [0, 0, 0.5, 0, 0, 0],
                    [0, 0, -0.5, 0, 0, 0],
-                   [0, 0, 0, 0.2356194, 0, 0 ],
-                   [0, 0, 0, -0.2356194, 0, 0 ],
-                   [0, 0, 0, 0, 0.2356194, 0 ],
-                   [0, 0, 0, 0, -0.2356194, 0],
-                   [0, 0, 0, 0, 0, 0.2356194 ],
-                   [0, 0, 0, 0, 0, -0.2356194 ]])
+                   [0, 0, 0, self.rad, 0, 0 ],
+                   [0, 0, 0, -self.rad, 0, 0 ],
+                   [0, 0, 0, 0, self.rad, 0 ],
+                   [0, 0, 0, 0, -self.rad, 0],
+                   [0, 0, 0, 0, 0, self.rad ],
+                   [0, 0, 0, 0, 0, -self.rad ]])
            
 
         self.episode_length = episode_length
@@ -200,8 +181,6 @@ class MapEnv(object):
         rotation_m=matrix_from_euler_xyz(xyz)
         pq=quaternion_from_matrix(rotation_m)
         return pq
-
-
 
 
 
@@ -288,9 +267,11 @@ class MapEnv(object):
         p = (p - .5) * 2
         ent /= -np.log(.5)
         ent = (ent - .5) * 2
-        stack=np.concatenate([np.expand_dims(self.real_2_D_map[:,:,0],axis=-1), np.expand_dims(p, axis=-1)], axis=-1)
+        stack=np.concatenate([np.expand_dims(self.real_2_D_map[:,:,0]/self.zn,axis=-1), np.expand_dims(p, axis=-1)], axis=-1)
         belief=np.concatenate((stack,np.expand_dims(ent, axis=-1)), axis=-1)
-        return belief
+        state_pos= self.pose.state_pos() / np.pi
+        state=np.asarray([belief, state_pos])
+        return state
 
 
         #return np.concatenate([np.expand_dims(p, -1), np.expand_dims(ent, -1)], axis=-1)
@@ -303,35 +284,25 @@ class MapEnv(object):
             print("Must call env.reset() before calling step()")
             return
         self.t += 1
-        #a=1
-        # Perform action
+
         
         R_t=np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]])
         if a<6:
             new_position=self.pose.pose_matrix[:3,3] + self.ACTIONS[a][:3]
             if self.legal_change_in_pose(new_position):
                 self.pose.pose_matrix[:3,3]= new_position
-                self.sonar_model.sensor_matrix_render[:,:,:3,3]= new_position
                 self.sonar_model.sensor_matrix[:,:,:3,3]= new_position
+                self.sonar_model.sensor_matrix[:,:,:3,3]= new_position
+        else:
+            if a==6 or a==7:
+                R_t=matrix_from_axis_angle([1, 0, 0,self.ACTIONS[a][3]])
+            elif a==8 or a==9:
+                R_t=matrix_from_axis_angle([0, 1, 0,self.ACTIONS[a][4]])
+            elif a==10 or a==11:
+                R_t=matrix_from_axis_angle([0, 0, 1,self.ACTIONS[a][5]])
+            self.pose.pose_matrix[:3,:3]= np.matmul(self.pose.pose_matrix[:3,:3],R_t)
+        self.sonar_model.sensor_matrix[:,:,:3,:3]= np.matmul(self.pose.pose_matrix[:3,:3],self.sonar_model.sensor_matrix_init[:,:,:3,:3]) 
 
-        elif a==6 or a==7:
-            R_t=matrix_from_axis_angle([1, 0, 0,self.ACTIONS[a][3]])
-            R_t_s=matrix_from_axis_angle([0, 1, 0,-self.ACTIONS[a][3]])
-            self.pose.pose_matrix[:3,:3]= np.matmul(self.pose.pose_matrix[:3,:3],R_t)
-            self.sonar_model.sensor_matrix_render[:,:,:3,:3]= np.matmul(R_t_s,self.sonar_model.sensor_matrix_render[:,:,:3,:3]) 
-            self.sonar_model.sensor_matrix[:,:,:3,:3]= np.matmul(R_t_s,self.sonar_model.sensor_matrix[:,:,:3,:3])
-        elif a==8 or a==9:
-            R_t=matrix_from_axis_angle([0, 1, 0,self.ACTIONS[a][4]])
-            R_t_s=matrix_from_axis_angle([1, 0, 0,self.ACTIONS[a][4]])
-            self.pose.pose_matrix[:3,:3]= np.matmul(self.pose.pose_matrix[:3,:3],R_t)
-            self.sonar_model.sensor_matrix_render[:,:,:3,:3]= np.matmul(R_t_s,self.sonar_model.sensor_matrix_render[:,:,:3,:3])
-            self.sonar_model.sensor_matrix[:,:,:3,:3]= np.matmul(R_t_s,self.sonar_model.sensor_matrix[:,:,:3,:3])
-        elif a==10 or a==11:
-            R_t=matrix_from_axis_angle([0, 0, 1,self.ACTIONS[a][5]])
-            R_t_s=matrix_from_axis_angle([0, 0, 1,self.ACTIONS[a][5]])
-            self.pose.pose_matrix[:3,:3]= np.matmul(self.pose.pose_matrix[:3,:3],R_t)
-            self.sonar_model.sensor_matrix_render[:,:,:3,:3]= np.matmul(R_t_s,self.sonar_model.sensor_matrix_render[:,:,:3,:3])
-            self.sonar_model.sensor_matrix[:,:,:3,:3]= np.matmul(R_t_s,self.sonar_model.sensor_matrix[:,:,:3,:3])
         
         
         tmp_l_t, tmp_coordinate_storage, update_map=self.sonar_model.readSonarData()
@@ -344,8 +315,8 @@ class MapEnv(object):
 
         # reward is decrease in entropy
         reward = np.sum(self.calc_entropy(self.l_t)) - np.sum(self.calc_entropy(new_l_t))
-
         # Check if done
+
         done = False
         if self.t == self.episode_length:
             done = True

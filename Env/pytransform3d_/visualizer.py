@@ -119,6 +119,8 @@ if True:
                 Open3D geometry.
             """
             self.visualizer.update_geometry(geometry)
+
+
             
             
         def update_geometry2(self, geometry):
@@ -130,6 +132,13 @@ if True:
                 Open3D geometry.
             """
             self.visualizer2.update_geometry(geometry)
+
+        def update_color2(self, g, c):
+            n_vertices = len(g.vertices)
+            colors = np.zeros((n_vertices, 3))
+            colors[:] = c
+            g.vertex_colors = o3d.utility.Vector3dVector(colors)
+            self.visualizer2.update_geometry(g)
 
         def set_line_width(self, line_width):
             """Set render option line width.
@@ -589,6 +598,10 @@ if True:
             """
             for g in self.geometries:
                 figure.add_geometry2(g)
+
+        def update_color2(self, figure, c):
+            for g in self.geometries:
+                figure.update_color2(g,c)
                 
         def remove_artist(self, figure):
             """Add artist to figure.
@@ -611,6 +624,7 @@ if True:
             """
             for g in self.geometries:
                 figure.remove_geometry2(g)
+
         @property
         def geometries(self):
             """Expose geometries.
@@ -895,10 +909,10 @@ if True:
             self.box = o3d.geometry.TriangleMesh.create_box(
                 width, height, depth)
             if c is not None:
-                n_vertices = len(self.box.vertices)
-                colors = np.zeros((n_vertices, 3))
-                colors[:] = c
-                self.box.vertex_colors = o3d.utility.Vector3dVector(colors)
+                self.n_vertices = len(self.box.vertices)
+                self.colors = np.zeros((self.n_vertices, 3))
+                self.colors[:] = c
+                self.box.vertex_colors = o3d.utility.Vector3dVector(self.colors)
             self.box.compute_vertex_normals()
             self.A2B = None
             self.set_data(A2B)
@@ -919,6 +933,7 @@ if True:
 
             self.box.transform(pt.invert_transform(previous_A2B, check=False))
             self.box.transform(self.A2B)
+        
 
         @property
         def geometries(self):
