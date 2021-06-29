@@ -158,7 +158,7 @@ class DDDQN_agent(Agent):
         hidden_feature_pos = Dense(512)(input_pose)
         hidden_feature_pos1 = Dense(512)(hidden_feature_pos)
 
-        input_frame = Input(shape=(self.frame_x, self.frame_y,2))
+        input_frame = Input(shape=(self.frame_x, self.frame_y,3))
         action_one_hot = Input(shape=(self.num_actions,))
         conv1 = Conv2D(32, (6, 6), strides=(3, 3), activation='relu')(input_frame)
         conv2 = Conv2D(64, (3, 3), strides=(2, 2), activation='relu')(conv1)
@@ -306,7 +306,6 @@ class DDDQN_agent(Agent):
         minibatch = random.sample(self.replay_memory, self.batch_size)
         for data in minibatch:
             state_batch_frame.append(data[0][0])
-            print(data[0][1].shape)
             state_batch_pose.append(data[0][1])
             action_batch.append(data[1])
             reward_batch.append(data[2])

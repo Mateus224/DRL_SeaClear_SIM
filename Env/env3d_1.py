@@ -144,7 +144,7 @@ class SonarModel(object):
 
 
 class MapEnv(object):
-    def __init__(self, env_shape, p=.1, episode_length=130, randompose=True):
+    def __init__(self, env_shape, p=.1, episode_length=200, randompose=True):
         self.random_pose=True
         self.state_pos=np.zeros(7)
         self.p = p
@@ -273,9 +273,9 @@ class MapEnv(object):
         p = (p - .5) * 2
         ent /= -np.log(.5)
         ent = (ent - .5) * 2
-        #stack=np.concatenate([np.expand_dims(self.real_2_D_map[:,:,0]/self.zn,axis=-1), np.expand_dims(p, axis=-1)], axis=-1)
-        #belief=np.concatenate((stack,np.expand_dims(ent, axis=-1)), axis=-1)
-        belief=np.concatenate((np.expand_dims(self.real_2_D_map[:,:,0]/self.zn,axis=-1),np.expand_dims(ent, axis=-1)), axis=-1)
+        stack=np.concatenate([np.expand_dims(self.real_2_D_map[:,:,0]/self.zn,axis=-1), np.expand_dims(p, axis=-1)], axis=-1)
+        belief=np.concatenate((stack,np.expand_dims(ent, axis=-1)), axis=-1)
+        #belief=np.concatenate((np.expand_dims(self.real_2_D_map[:,:,0]/self.zn,axis=-1),np.expand_dims(ent, axis=-1)), axis=-1)
         self.state_pos[0:3]=self.pose.pose_matrix[:3,3]
         self.state_pos[0]= self.state_pos[0]/ self.xn
         self.state_pos[1]= self.state_pos[1]/ self.yn
@@ -295,8 +295,8 @@ class MapEnv(object):
             print("Must call env.reset() before calling step()")
             return
         self.t += 1
-
-        
+        reward=0
+        done = False
         R_t=np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]])
         if a<6:
             new_position=self.pose.pose_matrix[:3,3] + self.ACTIONS[a][:3]
@@ -304,6 +304,9 @@ class MapEnv(object):
                 self.pose.pose_matrix[:3,3]= new_position
                 self.sonar_model.sensor_matrix[:,:,:3,3]= new_position
                 self.sonar_model.sensor_matrix[:,:,:3,3]= new_position
+            else:
+                reward=-1
+                done=True
         else:
             if a==6 or a==7:
                 R_t=matrix_from_axis_angle([1, 0, 0,self.ACTIONS[a][3]])
@@ -325,10 +328,11 @@ class MapEnv(object):
         pose_uuv=self.pose.pose_matrix.copy()
 
         # reward is decrease in entropy
-        reward = np.sum(self.calc_entropy(self.l_t)) - np.sum(self.calc_entropy(new_l_t))
+        if done==False:
+            reward = np.sum(self.calc_entropy(self.l_t)) - np.sum(self.calc_entropy(new_l_t))
         # Check if done
 
-        done = False
+        
         if self.t == self.episode_length:
             done = True
             self.t = None
