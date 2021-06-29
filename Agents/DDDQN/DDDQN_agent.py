@@ -160,12 +160,12 @@ class DDDQN_agent(Agent):
 
         input_frame = Input(shape=(self.frame_x, self.frame_y,3))
         action_one_hot = Input(shape=(self.num_actions,))
-        conv1 = Conv2D(32, (5, 5), strides=(4, 4), activation='relu')(input_frame)
+        conv1 = Conv2D(32, (6, 6), strides=(3, 3), activation='relu')(input_frame)
         conv2 = Conv2D(64, (3, 3), strides=(2, 2), activation='relu')(conv1)
-        conv3 = Conv2D(64, (2, 2), strides=(1, 1), activation='relu')(conv2)
+        conv3 = Conv2D(128, (2, 2), strides=(1, 1), activation='relu')(conv2)
         flat_feature = Flatten()(conv3)
         hidden_feature = Dense(512, activation = 'relu')(flat_feature)
-        combine= Concatenate()([hidden_feature, hidden_feature_pos1])
+        combine= Concatenate()([flat_feature, hidden_feature_pos1])
         hidden_feature_comb=Dense(512, activation = 'relu')(combine)
 
 
@@ -275,12 +275,12 @@ class DDDQN_agent(Agent):
             print(
                 'EPISODE: {0:6d} / TIMESTEP: {1:8d} / DURATION: {2:5d} / EPSILON: {3:.5f} / AVG_REWARD: {4:2.3f} / AVG_MAX_Q: {5:2.4f} / AVG_LOSS: {6:.5f} / MODE: {7}'.format(
                     self.episode + 1, self.t, self.duration, self.epsilon,
-                    np.mean(self.last_30_reward), self.total_q_max / float(self.duration),
+                    self.total_reward, self.total_q_max / float(self.duration),
                     self.total_loss / (float(self.duration) / float(self.train_interval)), mode))
             print(
                 'EPISODE: {0:6d} / TIMESTEP: {1:8d} / DURATION: {2:5d} / EPSILON: {3:.5f} / AVG_REWARD: {4:2.3f} / AVG_MAX_Q: {5:2.4f} / AVG_LOSS: {6:.5f} / MODE: {7}'.format(
                     self.episode + 1, self.t, self.duration, self.epsilon,
-                    np.mean(self.last_30_reward), self.total_q_max / float(self.duration),
+                    self.total_reward, self.total_q_max / float(self.duration),
                     self.total_loss / (float(self.duration) / float(self.train_interval)), mode), file=self.log)
 
             # Init for new game

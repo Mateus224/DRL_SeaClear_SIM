@@ -43,13 +43,13 @@ def update_map(fig, step, belief, update_map):
 
 def animation_callback1(step, n_frames, frame, frame_debug, uuv, beams, env, agent, fig):
     global obs
-    
+    reward=0
 
     #action=randrange(12)
     if(step<200):
         action = agent.make_action(obs)
 
-        action=randrange(12)
+
         action = agent.make_action(obs)
         obs, reward, done, uuv_pose = env.step(action)
         
@@ -61,6 +61,8 @@ def animation_callback1(step, n_frames, frame, frame_debug, uuv, beams, env, age
 
 
         reward+= reward
+    else:
+        print(reward)
 
 
     return uuv, beams #frame, frame_debug, uuv, beams

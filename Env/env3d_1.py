@@ -84,26 +84,26 @@ class SonarModel(object):
                         z=int(measurments[i,j,2])
                         correct = np.power(self.diastance_accuracy,z)*self.measure_accurancy[j]
                         if random.random()<correct:
-                            if value==0.5:
-                                log_odds[x,y]= np.log(correct / (1 - correct))
+                            if value==1:
+                                log_odds[x,y]= np.log(1-correct / correct)
                                 tmp_new_l_t[x,y] = log_odds[x,y]+ tmp_new_l_t[x,y]
                                 tmp_coordinate_storage[x,y,z]=tmp_new_l_t[x,y]
                                 self.update_map[hashkey]=1
 
                             else:
-                                log_odds[x,y] = np.log((1 - correct) / correct)
+                                log_odds[x,y] = np.log(correct / (1-correct))
                                 tmp_new_l_t[x,y] = log_odds[x,y]+ tmp_new_l_t[x,y]
                                 tmp_coordinate_storage[x,y,z]=tmp_new_l_t[x,y]
                                 self.update_map[hashkey]=1
 
                         else:
-                            if value==1:
-                                log_odds[x,y]= np.log(correct / (1 - correct))
+                            if value==0.5:
+                                log_odds[x,y]= np.log((1-correct) / correct)
                                 tmp_new_l_t[x,y] = log_odds[x,y]+ tmp_new_l_t[x,y]
                                 tmp_coordinate_storage[x,y,z]=tmp_new_l_t[x,y]
                                 self.update_map[hashkey]=1
                             else:
-                                log_odds[x,y] = np.log((1 - correct) / correct)
+                                log_odds[x,y] = np.log( correct / (1-correct))
                                 tmp_new_l_t[x,y] = log_odds[x,y]+ tmp_new_l_t[x,y]
                                 tmp_coordinate_storage[x,y,z]=tmp_new_l_t[x,y]
                                 self.update_map[hashkey]=1
@@ -269,12 +269,16 @@ class MapEnv(object):
         p = self.logodds_to_prob(obs)
         self.ent = self.calc_entropy(obs)
         ent = self.ent
+        
         p = (p - .5) * 2
         ent /= -np.log(.5)
         ent = (ent - .5) * 2
         stack=np.concatenate([np.expand_dims(self.real_2_D_map[:,:,0]/self.zn,axis=-1), np.expand_dims(p, axis=-1)], axis=-1)
         belief=np.concatenate((stack,np.expand_dims(ent, axis=-1)), axis=-1)
-        self.state_pos[0:3]=self.pose.pose_matrix[:3,3]/40
+        self.state_pos[0:3]=self.pose.pose_matrix[:3,3]
+        self.state_pos[0]= self.state_pos[0]/ self.xn
+        self.state_pos[1]= self.state_pos[1]/ self.yn
+        self.state_pos[2]= self.state_pos[2]/ self.zn
         self.state_pos[3:]= axis_angle_from_matrix(self.pose.pose_matrix[:3,:3])/np.pi
         state=np.asarray([belief, self.state_pos])
         return state
