@@ -3,6 +3,7 @@ import numpy as np
 import random
 from Env.load_env import Load_env
 from Env.pytransform3d_.rotations import *
+import cv2
 
 
 
@@ -85,7 +86,7 @@ class SonarModel(object):
                         correct = np.power(self.diastance_accuracy,z)*self.measure_accurancy[j]
                         if random.random()<correct:
                             if value==1:
-                                log_odds[x,y]= np.log(1-correct / correct)
+                                log_odds[x,y]= np.log(1-correct / (correct+0.000000000001))
                                 tmp_new_l_t[x,y] = log_odds[x,y]+ tmp_new_l_t[x,y]
                                 tmp_coordinate_storage[x,y,z]=tmp_new_l_t[x,y]
                                 self.update_map[hashkey]=1
@@ -98,7 +99,7 @@ class SonarModel(object):
 
                         else:
                             if value==0.5:
-                                log_odds[x,y]= np.log((1-correct) / correct)
+                                log_odds[x,y]= np.log((1-correct) / (correct+0.000000000001))
                                 tmp_new_l_t[x,y] = log_odds[x,y]+ tmp_new_l_t[x,y]
                                 tmp_coordinate_storage[x,y,z]=tmp_new_l_t[x,y]
                                 self.update_map[hashkey]=1
@@ -145,7 +146,7 @@ class SonarModel(object):
 
 class MapEnv(object):
     def __init__(self, env_shape, p=.1, episode_length=200, randompose=True):
-        self.random_pose=True
+        self.random_pose=False
         self.state_pos=np.zeros(7)
         self.p = p
         self.env_shape=env_shape
@@ -166,7 +167,7 @@ class MapEnv(object):
                    [0, 0, 0, 0, 0, self.rad ],
                    [0, 0, 0, 0, 0, -self.rad ]])
            
-
+        self.imgplot=None
         self.episode_length = episode_length
         self.prims = False
         self.map=np.zeros((self.xn,self.yn,self.zn,3))
@@ -204,7 +205,8 @@ class MapEnv(object):
             self.z0= np.random.randint(min_z, self.zn)
             self.rotation=random_axis_angle()
         else:
-            self.x0, self.y0, self.z0 = self.xn/2, self.yn/2, self.zn/2
+            self.x0, self.y0, self.z0 = self.xn-3, self.yn-3, self.zn-3
+            self.rotation=random_axis_angle()
         self.pose = Pose(self.x0, self.y0, self.z0, self.rotation)
         #sself.map[self.x0, self.y0] = 0
 
@@ -263,6 +265,8 @@ class MapEnv(object):
 
     def observation_size(self):
         return 2 * self.N - 1
+    
+
 
     def get_observation(self):
         obs=self.l_t
@@ -282,6 +286,11 @@ class MapEnv(object):
         self.state_pos[2]= self.state_pos[2]/ self.zn
         self.state_pos[3:]= axis_angle_from_matrix(self.pose.pose_matrix[:3,:3])/np.pi
         state=np.asarray([belief, self.state_pos])
+        test=self.logodds_to_prob(obs)*255
+        entr= test.astype(np.uint8)
+        #cv2.imshow('image',entr)
+        
+        #cv2.waitKey(1)
         return state
 
 
@@ -305,7 +314,7 @@ class MapEnv(object):
                 self.sonar_model.sensor_matrix[:,:,:3,3]= new_position
                 self.sonar_model.sensor_matrix[:,:,:3,3]= new_position
             else:
-                reward=-1
+                reward=-0.1
                 done=True
         else:
             if a==6 or a==7:
@@ -329,7 +338,7 @@ class MapEnv(object):
 
         # reward is decrease in entropy
         if done==False:
-            reward = np.sum(self.calc_entropy(self.l_t)) - np.sum(self.calc_entropy(new_l_t))
+            reward = (np.sum(self.calc_entropy(self.l_t)) - np.sum(self.calc_entropy(new_l_t)))/75
         # Check if done
 
         

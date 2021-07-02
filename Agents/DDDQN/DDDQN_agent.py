@@ -105,6 +105,7 @@ class DDDQN_agent(Agent):
         if args.test_dqn:
             self.q_network.load_weights(self.test_dqn_model_path)
             self.log = open(self.save_summary_path + self.exp_name + '.log', 'w')
+
         else:
             self.log = open(self.save_summary_path + self.exp_name + '.log', 'w')
 
