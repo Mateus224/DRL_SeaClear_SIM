@@ -92,7 +92,7 @@ class SonarModel(object):
                                 self.update_map[hashkey]=1
 
                             else:
-                                log_odds[x,y] = np.log(correct / (1-correct))
+                                log_odds[x,y] = np.log(correct / (1.000000000001-correct))
                                 tmp_new_l_t[x,y] = log_odds[x,y]+ tmp_new_l_t[x,y]
                                 tmp_coordinate_storage[x,y,z]=tmp_new_l_t[x,y]
                                 self.update_map[hashkey]=1
@@ -104,7 +104,7 @@ class SonarModel(object):
                                 tmp_coordinate_storage[x,y,z]=tmp_new_l_t[x,y]
                                 self.update_map[hashkey]=1
                             else:
-                                log_odds[x,y] = np.log( correct / (1-correct))
+                                log_odds[x,y] = np.log( correct / (1.000000000001-correct))
                                 tmp_new_l_t[x,y] = log_odds[x,y]+ tmp_new_l_t[x,y]
                                 tmp_coordinate_storage[x,y,z]=tmp_new_l_t[x,y]
                                 self.update_map[hashkey]=1
@@ -145,8 +145,8 @@ class SonarModel(object):
 
 
 class MapEnv(object):
-    def __init__(self, env_shape, p=.1, episode_length=200, randompose=True):
-        self.random_pose=False
+    def __init__(self, env_shape, p=.1, episode_length=1000, randompose=True):
+        self.random_pose=True
         self.state_pos=np.zeros(7)
         self.p = p
         self.env_shape=env_shape
@@ -288,9 +288,9 @@ class MapEnv(object):
         state=np.asarray([belief, self.state_pos])
         test=self.logodds_to_prob(obs)*255
         entr= test.astype(np.uint8)
-        #cv2.imshow('image',entr)
+        cv2.imshow('image',entr)
         
-        #cv2.waitKey(1)
+        cv2.waitKey(1)
         return state
 
 
@@ -314,7 +314,7 @@ class MapEnv(object):
                 self.sonar_model.sensor_matrix[:,:,:3,3]= new_position
                 self.sonar_model.sensor_matrix[:,:,:3,3]= new_position
             else:
-                reward=-0.1
+                reward=-0.01
                 done=True
         else:
             if a==6 or a==7:
@@ -338,7 +338,7 @@ class MapEnv(object):
 
         # reward is decrease in entropy
         if done==False:
-            reward = (np.sum(self.calc_entropy(self.l_t)) - np.sum(self.calc_entropy(new_l_t)))/75
+            reward = ((np.sum(self.calc_entropy(self.l_t)) - np.sum(self.calc_entropy(new_l_t)))*(0.69))/75
         # Check if done
 
         

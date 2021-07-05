@@ -57,7 +57,7 @@ class DDDQN_agent(Agent):
         self.save_summary_path = args.save_summary_path
         self.test_dqn_model_path = args.test_dqn_model_path
         self.exp_name = args.exp_name
-        self.ddqn = args.ddqn
+        self.ddqn = True# args.ddqn
         self.dueling = args.dueling
 
 
@@ -139,41 +139,59 @@ class DDDQN_agent(Agent):
             if self.epsilon >= random.random() or self.t < self.initial_replay_size:
                 action = random.randrange(self.num_actions)
             else:
-                action = np.argmax(self.q_network.predict([np.expand_dims(observation[0], axis=0), np.expand_dims(observation[1], axis=0), self.dummy_input])[0])
+                action =np.argmax(self.q_network.predict([np.expand_dims(observation[0], axis=0), np.expand_dims(observation[1][:3], axis=0),np.expand_dims(observation[1][3:], axis=0),  self.dummy_input])[0])
+ 
             # Anneal epsilon linearly over time
             
             if self.epsilon > self.final_epsilon and self.t >= self.initial_replay_size:
-                self.epsilon -= self.epsilon_step
+
+                if self.epsilon < 0.2:
+                    self.epsilon-= self.epsilon_step/2
+                elif self.epsilon < 0.1:
+                    self.epsilon-= self.epsilon_step/4
+                elif self.epsilon < 0.05:
+                    self.epsilon-= self.epsilon_step/8
+                else:
+                    self.epsilon -= self.epsilon_step
         else:
             if 0.005 >= random.random():
                 action = random.randrange(self.num_actions)
             else:
                 #print(observation.shape)
 
-                action = np.argmax(self.q_network.predict([np.expand_dims(observation[0], axis=0),np.expand_dims(observation[1], axis=0), self.dummy_input])[0])
+                action = np.argmax(self.q_network.predict([np.expand_dims(observation[0], axis=0), np.expand_dims(observation[1][:3], axis=0),np.expand_dims(observation[1][3:], axis=0),  self.dummy_input])[0])
+ 
         return action
 
     def build_network(self):
+        input_position= Input(shape=(3))
+        input_pose= Input(shape=(4))
+        hidden_feature_pos = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(input_pose)
+        hidden_feature_pose1 = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(hidden_feature_pos)
 
-        input_pose= Input(shape=(7))
-        hidden_feature_pos = Dense(512)(input_pose)
-        hidden_feature_pos1 = Dense(512)(hidden_feature_pos)
+        hidden_feature_position = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(input_position)
+        hidden_feature_position = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(hidden_feature_position)
+        comb_pose = Concatenate()([hidden_feature_pose1, hidden_feature_position])
+
+        comb_pose1 = Dense(1024, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(comb_pose)
+        comb_pose2 = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(comb_pose1)
+
 
         input_frame = Input(shape=(self.frame_x, self.frame_y,3))
         action_one_hot = Input(shape=(self.num_actions,))
-        conv1 = Conv2D(32, (6, 6), strides=(3, 3), activation='relu')(input_frame)
-        conv2 = Conv2D(64, (3, 3), strides=(2, 2), activation='relu')(conv1)
-        conv3 = Conv2D(128, (2, 2), strides=(1, 1), activation='relu')(conv2)
+        conv1 = Conv2D(64, (4, 4), strides=(2, 2), activation=tf.keras.layers.LeakyReLU(alpha=0.01))(input_frame)
+        conv2 = Conv2D(128, (4, 4), strides=(2, 2), activation=tf.keras.layers.LeakyReLU(alpha=0.01))(conv1)
+        conv3 = Conv2D(256, (4, 4), strides=(2, 2), activation=tf.keras.layers.LeakyReLU(alpha=0.01))(conv2)
         flat_feature = Flatten()(conv3)
-        hidden_feature = Dense(512, activation = 'relu')(flat_feature)
-        combine= Concatenate()([flat_feature, hidden_feature_pos1])
-        hidden_feature_comb=Dense(512, activation = 'relu')(combine)
+        hidden_feature = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(flat_feature)
+        combine= Concatenate()([hidden_feature, comb_pose2])
+        hidden_feature_comb=Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(combine)
 
 
         if True:#self.dueling:
-            value_hidden = Dense(512, activation = 'relu', name = 'value_fc')(hidden_feature_comb)
+            value_hidden = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01), name = 'value_fc')(hidden_feature_comb)
             value = Dense(1, name = "value")(value_hidden)
-            action_hidden = Dense(512, activation = 'relu', name = 'action_fc')(hidden_feature_comb)
+            action_hidden = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01), name = 'action_fc')(hidden_feature_comb)
             action = Dense(self.num_actions, name = "action")(action_hidden)
             action_mean = Lambda(lambda x: tf.reduce_mean(x, axis = 1, keepdims = True), name = 'action_mean')(action) 
             q_value_prediction = Lambda(lambda x: x[0] + x[1] - x[2], name = 'duel_output')([action, value, action_mean])
@@ -184,7 +202,7 @@ class DDDQN_agent(Agent):
         target_q_value = Lambda(lambda x: K.sum(x, axis=-1, keepdims=True), output_shape=lambda_out_shape)(
             select_q_value_of_action)
 
-        model = Model(inputs=[input_frame, input_pose, action_one_hot], outputs=[q_value_prediction, target_q_value])
+        model = Model(inputs=[input_frame, input_position, input_pose, action_one_hot], outputs=[q_value_prediction, target_q_value])
 
         # MSE loss on target_q_value only
         model.compile(loss=['mse', 'mse'], loss_weights=[0.0, 1.0], optimizer=Adam(lr=0.00001))  # self.opt)
@@ -257,7 +275,7 @@ class DDDQN_agent(Agent):
                 print('Successfully saved: ' + save_path)
 
         self.total_reward += reward
-        self.total_q_max += np.max(self.q_network.predict([np.expand_dims(state[0], axis=0), np.expand_dims(state[1], axis=0), self.dummy_input])[0])
+        self.total_q_max += np.max(self.q_network.predict([np.expand_dims(state[0], axis=0), np.expand_dims(state[1][:3], axis=0),np.expand_dims(state[1][3:], axis=0) ,self.dummy_input])[0])
         self.duration += 1
 
         if terminal:
@@ -295,10 +313,12 @@ class DDDQN_agent(Agent):
 
     def train_network(self):
         state_batch_frame = []
+        state_batch_position = []
         state_batch_pose = []
         action_batch = []
         reward_batch = []
         next_state_batch_frame = []
+        next_state_batch_position = []
         next_state_batch_pose = []
         terminal_batch = []
         y_batch = []
@@ -307,21 +327,23 @@ class DDDQN_agent(Agent):
         minibatch = random.sample(self.replay_memory, self.batch_size)
         for data in minibatch:
             state_batch_frame.append(data[0][0])
-            state_batch_pose.append(data[0][1])
+            state_batch_position.append(data[0][1][:3])
+            state_batch_pose.append(data[0][1][3:])
             action_batch.append(data[1])
             reward_batch.append(data[2])
             next_state_batch_frame.append(data[3][0])
-            next_state_batch_pose.append(data[3][1])
+            next_state_batch_position.append(data[3][1][:3])
+            next_state_batch_pose.append(data[3][1][3:])
             terminal_batch.append(data[4])
 
         # Convert True to 1, False to 0
         terminal_batch = np.array(terminal_batch) + 0
         # Q value from target network
-        target_q_values_batch = self.target_network.predict([list2np(next_state_batch_frame),list2np(next_state_batch_pose), self.dummy_batch])[0]
+        target_q_values_batch = self.target_network.predict([list2np(next_state_batch_frame),list2np(next_state_batch_position),list2np(next_state_batch_pose), self.dummy_batch])[0]
 
         # create Y batch depends on dqn or ddqn
-        if self.ddqn:
-            next_action_batch = np.argmax(self.q_network.predict([list2np(next_state_batch),list2np(next_state_batch_pose), self.dummy_batch])[0],
+        if True: #self.ddqn:
+            next_action_batch = np.argmax(self.q_network.predict([list2np(next_state_batch_frame),list2np(next_state_batch_position),list2np(next_state_batch_pose), self.dummy_batch])[0],
                                           axis=-1)
             for i in range(self.batch_size):
                 y_batch.append(reward_batch[i] + (1 - terminal_batch[i]) * self.gamma * target_q_values_batch[i][
@@ -334,7 +356,7 @@ class DDDQN_agent(Agent):
         for idx, ac in enumerate(action_batch):
             a_one_hot[idx, ac] = 1.0
 
-        loss = self.q_network.train_on_batch([list2np(state_batch_frame),list2np(state_batch_pose), a_one_hot], [self.dummy_batch, y_batch])
+        loss = self.q_network.train_on_batch([list2np(state_batch_frame),list2np(state_batch_position),list2np(state_batch_pose), a_one_hot], [self.dummy_batch, y_batch])
 
         self.total_loss += loss[1]
 

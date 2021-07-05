@@ -2031,8 +2031,10 @@ def axis_angle_from_matrix(R, strict_check=True):
         constrained to [0, pi].
     """
     R = check_matrix(R, strict_check=strict_check)
-    angle = np.arccos((np.trace(R) - 1.0) / 2.0)
-
+    #angle = np.arccos((np.trace(R) - 1.0) / 2.0)
+    #print(angle)
+    angle = np.arccos(np.minimum(1, ((np.trace(R) - 1.0) / 2.0))) #(np.trace(R) - 1.0) / 2.0)
+    #print(angle)
     if angle == 0.0:
         return np.array([1.0, 0.0, 0.0, 0.0])
 
