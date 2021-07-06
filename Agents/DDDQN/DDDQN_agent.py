@@ -253,7 +253,6 @@ class DDDQN_agent(Agent):
 
     def run(self, state, action, reward, terminal, observation):
         next_state = observation
-        print(state[1][:])
 
         # Store transition in replay memory
         self.replay_memory.append((state, action, reward, next_state, terminal))
