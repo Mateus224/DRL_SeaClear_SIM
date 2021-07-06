@@ -165,7 +165,7 @@ class DDDQN_agent(Agent):
 
     def build_network(self):
         input_position= Input(shape=(3))
-        input_pose= Input(shape=(4))
+        input_pose= Input(shape=(9))
         hidden_feature_pos = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(input_pose)
         hidden_feature_pose1 = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(hidden_feature_pos)
 
@@ -212,7 +212,7 @@ class DDDQN_agent(Agent):
 
     def build_network_2_D(self):
         # Consturct model
-        input_voxel_frame = Input(shape=(self.frame_x, self.frame_y,self.frame_z, 2))
+        input_voxel_frame = Input(shape=(self.frame_x, self.frame_y,self.frame_z, 3))
         action_one_hot = Input(shape=(self.num_actions,))
         conv1 = Conv3D(32, kernel_size=(6, 6, 6),  activation='relu')(input_voxel_frame)
         conv2 = Conv3D(64, (4, 4, 4),  activation='relu')(conv1)
@@ -253,6 +253,7 @@ class DDDQN_agent(Agent):
 
     def run(self, state, action, reward, terminal, observation):
         next_state = observation
+        print(state[1][:])
 
         # Store transition in replay memory
         self.replay_memory.append((state, action, reward, next_state, terminal))

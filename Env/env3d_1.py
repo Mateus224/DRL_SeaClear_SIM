@@ -148,6 +148,7 @@ class MapEnv(object):
     def __init__(self, env_shape, p=.1, episode_length=1000, randompose=True):
         self.random_pose=True
         self.state_pos=np.zeros(7)
+        self.state_pos_flat=np.zeros(12)
         self.p = p
         self.env_shape=env_shape
         self.xn = env_shape[0]
@@ -202,7 +203,8 @@ class MapEnv(object):
             
             self.x0, self.y0 = np.random.randint(0, self.xn), np.random.randint(0, self.yn)
             min_z = self.real_2_D_map[self.x0][self.y0][0]
-            self.z0= np.random.randint(min_z, self.zn)
+            assert min_z!=self.zn or min_z+1!=self.zn or min_z+1!=self.zn-1
+            self.z0= np.random.randint((min_z+1), (self.zn-1))
             self.rotation=random_axis_angle()
         else:
             self.x0, self.y0, self.z0 = self.xn-3, self.yn-3, self.zn-3
@@ -281,11 +283,11 @@ class MapEnv(object):
         belief=np.concatenate((stack,np.expand_dims(ent, axis=-1)), axis=-1)
         #belief=np.concatenate((np.expand_dims(self.real_2_D_map[:,:,0]/self.zn,axis=-1),np.expand_dims(ent, axis=-1)), axis=-1)
         self.state_pos[0:3]=self.pose.pose_matrix[:3,3]
-        self.state_pos[0]= self.state_pos[0]/ self.xn
-        self.state_pos[1]= self.state_pos[1]/ self.yn
-        self.state_pos[2]= self.state_pos[2]/ self.zn
-        self.state_pos[3:]= axis_angle_from_matrix(self.pose.pose_matrix[:3,:3])/np.pi
-        state=np.asarray([belief, self.state_pos])
+        self.state_pos_flat[0]= self.state_pos[0]/ self.xn
+        self.state_pos_flat[1]= self.state_pos[1]/ self.yn
+        self.state_pos_flat[2]= self.state_pos[2]/ self.zn
+        self.state_pos_flat[3:]= self.pose.pose_matrix[:3,:3].flatten("F")/np.pi
+        state=np.asarray([belief, self.state_pos_flat])
         test=self.logodds_to_prob(obs)*255
         entr= test.astype(np.uint8)
         cv2.imshow('image',entr)
