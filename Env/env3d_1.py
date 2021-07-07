@@ -155,12 +155,12 @@ class MapEnv(object):
         self.yn = env_shape[1]
         self.zn = env_shape[2]
         self.rad=np.deg2rad(15)
-        self.ACTIONS = np.array([[0.5, 0, 0, 0, 0, 0],
-                   [-0.5, 0, 0, 0, 0, 0],
-                   [0, 0.5, 0,  0, 0, 0],
-                   [0, -0.5, 0, 0, 0, 0],
-                   [0, 0, 0.5, 0, 0, 0],
-                   [0, 0, -0.5, 0, 0, 0],
+        self.ACTIONS = np.array([[2, 0, 0, 0, 0, 0],
+                   [-2, 0, 0, 0, 0, 0],
+                   [0, 2, 0,  0, 0, 0],
+                   [0, -2, 0, 0, 0, 0],
+                   [0, 0, 2, 0, 0, 0],
+                   [0, 0, -2, 0, 0, 0],
                    [0, 0, 0, self.rad, 0, 0 ],
                    [0, 0, 0, -self.rad, 0, 0 ],
                    [0, 0, 0, 0, self.rad, 0 ],
@@ -316,7 +316,7 @@ class MapEnv(object):
                 self.sonar_model.sensor_matrix[:,:,:3,3]= new_position
                 self.sonar_model.sensor_matrix[:,:,:3,3]= new_position
             else:
-                reward=-0.01
+                reward=0
                 done=True
         else:
             if a==6 or a==7:
