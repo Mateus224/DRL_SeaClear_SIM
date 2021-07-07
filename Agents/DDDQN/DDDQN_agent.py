@@ -179,13 +179,14 @@ class DDDQN_agent(Agent):
 
         input_frame = Input(shape=(self.frame_x, self.frame_y,3))
         action_one_hot = Input(shape=(self.num_actions,))
-        conv1 = Conv2D(64, (4, 4), strides=(2, 2), activation=tf.keras.layers.LeakyReLU(alpha=0.01))(input_frame)
+        conv1 = Conv2D(128, (4, 4), strides=(2, 2), activation=tf.keras.layers.LeakyReLU(alpha=0.01))(input_frame)
         conv2 = Conv2D(128, (4, 4), strides=(2, 2), activation=tf.keras.layers.LeakyReLU(alpha=0.01))(conv1)
         conv3 = Conv2D(256, (4, 4), strides=(2, 2), activation=tf.keras.layers.LeakyReLU(alpha=0.01))(conv2)
         flat_feature = Flatten()(conv3)
         hidden_feature = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(flat_feature)
         combine= Concatenate()([hidden_feature, comb_pose2])
         hidden_feature_comb=Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(combine)
+        hidden_feature_comb=Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(hidden_feature_comb)
 
 
         if True:#self.dueling:
