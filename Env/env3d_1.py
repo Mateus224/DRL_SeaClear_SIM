@@ -28,10 +28,11 @@ class Pose:
 
 
 class SonarModel(object):
-    def __init__(self, map, pose, hashmap, num_beams=15, separation=5.46, beamWidth=82, beamOpening=20, diastance_accuracy=0.98, measure_accurancy=np.array([0.80, 0.88, 0.95, 0.88, 0.80])):
+    def __init__(self, map, pose, hashmap, pool, num_beams=15, separation=5.46, beamWidth=82, beamOpening=20, diastance_accuracy=0.98, measure_accurancy=np.array([0.80, 0.88, 0.95, 0.88, 0.80])):
         self.map = map
         self.pose=pose
         self.hashmap=hashmap
+        self.pool=pool
         self.num_beams=num_beams
         self.separation=(separation*np.pi)/180
         self.beamOpening=(beamOpening*np.pi)/180 # convert into radiant
@@ -68,49 +69,66 @@ class SonarModel(object):
     
     def readSonarData(self):
         self.update_map.clear()
-                                
-        tmp_new_l_t=np.zeros((self.map.shape[0], self.map.shape[1]))
-        log_odds=np.zeros((self.map.shape[0],self.map.shape[1]))
-        tmp_coordinate_storage=np.zeros((self.map.shape[0],self.map.shape[1], self.map.shape[2]))
+        self.tmp_new_l_t=np.zeros((self.map.shape[0], self.map.shape[1]))
+        self.log_odds=np.zeros((self.map.shape[0],self.map.shape[1]))
+        self.tmp_coordinate_storage=np.zeros((self.map.shape[0],self.map.shape[1], self.map.shape[2]))
+        r=None
         for z in range(20):
             measurments=self.sensor_matrix[:,:,:3,:3].dot([0,0,-z])
             measurments= measurments+self.sensor_matrix[:,:,:3,3]
             for i in range (measurments.shape[0]):
-                for j in range (measurments.shape[1]):
-                    hashkey = 1000000*int(measurments[i,j,0])+1000*int(measurments[i,j,1])+int(measurments[i,j,2])
-                    if hashkey in self.hashmap:
-                        value=self.hashmap.get(hashkey)
-                        x=int(measurments[i,j,0])
-                        y=int(measurments[i,j,1])
-                        z=int(measurments[i,j,2])
-                        correct = np.power(self.diastance_accuracy,z)*self.measure_accurancy[j]
-                        if random.random()<correct:
-                            if value==1:
-                                log_odds[x,y]= np.log(1-correct / (correct+0.000000000001))
-                                tmp_new_l_t[x,y] = log_odds[x,y]+ tmp_new_l_t[x,y]
-                                tmp_coordinate_storage[x,y,z]=tmp_new_l_t[x,y]
-                                self.update_map[hashkey]=1
+                r=self.pool.apply_async(self.m_processes,args=(i, measurments, self.update_map, self.tmp_new_l_t, self.log_odds, self.tmp_coordinate_storage, self.hashmap, self.diastance_accuracy, self.measure_accurancy), callback=self.callback)
+            r.get()
+        return self.tmp_new_l_t, self.tmp_coordinate_storage
 
-                            else:
-                                log_odds[x,y] = np.log(correct / (1.000000000001-correct))
-                                tmp_new_l_t[x,y] = log_odds[x,y]+ tmp_new_l_t[x,y]
-                                tmp_coordinate_storage[x,y,z]=tmp_new_l_t[x,y]
-                                self.update_map[hashkey]=1
+    @staticmethod
+    def m_processes(i, measurments, update_map, tmp_new_l_t, log_odds, tmp_coordinate_storage, hashmap, diastance_accuracy, measure_accurancy):
+        #measurments=args[1]
+        #update_map =args[2]
+        #tmp_new_l_t = args[3]
+        #log_odds = args[4]
+        #tmp_coordinate_storage =args[5]
+        #hashmap=args[6]
+        #diastance_accuracy = args[7]
+        #measure_accurancy =args [8]
+        for j in range (measurments.shape[1]):
+            hashkey = 1000000*int(measurments[i,j,0])+1000*int(measurments[i,j,1])+int(measurments[i,j,2])
+            if hashkey in hashmap:
+                value=hashmap.get(hashkey)
+                x=int(measurments[i,j,0])
+                y=int(measurments[i,j,1])
+                z=int(measurments[i,j,2])
+                correct = np.power(diastance_accuracy,z)*measure_accurancy[j]
+                if random.random()<correct:
+                    if value==1:
+                        log_odds[x,y]= np.log(1-correct / (correct+0.000000000001))
+                        tmp_new_l_t[x,y] = log_odds[x,y]+ tmp_new_l_t[x,y]
+                        tmp_coordinate_storage[x,y,z]=tmp_new_l_t[x,y]
+                        update_map[hashkey]=1
 
-                        else:
-                            if value==0.5:
-                                log_odds[x,y]= np.log((1-correct) / (correct+0.000000000001))
-                                tmp_new_l_t[x,y] = log_odds[x,y]+ tmp_new_l_t[x,y]
-                                tmp_coordinate_storage[x,y,z]=tmp_new_l_t[x,y]
-                                self.update_map[hashkey]=1
-                            else:
-                                log_odds[x,y] = np.log( correct / (1.000000000001-correct))
-                                tmp_new_l_t[x,y] = log_odds[x,y]+ tmp_new_l_t[x,y]
-                                tmp_coordinate_storage[x,y,z]=tmp_new_l_t[x,y]
-                                self.update_map[hashkey]=1
+                    else:
+                        log_odds[x,y] = np.log(correct / (1.000000000001-correct))
+                        tmp_new_l_t[x,y] = log_odds[x,y]+ tmp_new_l_t[x,y]
+                        tmp_coordinate_storage[x,y,z]=tmp_new_l_t[x,y]
+                        update_map[hashkey]=1
+
+                else:
+                    if value==0.5:
+                        log_odds[x,y]= np.log((1-correct) / (correct+0.000000000001))
+                        tmp_new_l_t[x,y] = log_odds[x,y]+ tmp_new_l_t[x,y]
+                        tmp_coordinate_storage[x,y,z]=tmp_new_l_t[x,y]
+                        update_map[hashkey]=1
+                    else:
+                        log_odds[x,y] = np.log( correct / (1.000000000001-correct))
+                        tmp_new_l_t[x,y] = log_odds[x,y]+ tmp_new_l_t[x,y]
+                        tmp_coordinate_storage[x,y,z]=tmp_new_l_t[x,y]
+                        update_map[hashkey]=1
+        return tmp_coordinate_storage, tmp_new_l_t, update_map
                                 
-
-        return tmp_new_l_t, tmp_coordinate_storage, self.update_map
+    def callback(self, arg):
+        self.tmp_coordinate_storage=arg[0]
+        self.tmp_new_l_t=  arg[1]
+        self.update_map =  arg[2]
 
 
     
@@ -145,10 +163,11 @@ class SonarModel(object):
 
 
 class MapEnv(object):
-    def __init__(self, env_shape, p=.1, episode_length=1000, randompose=True):
+    def __init__(self, env_shape, pool, p=.1, episode_length=400, randompose=True):
         self.random_pose=True
         self.state_pos=np.zeros(7)
         self.state_pos_flat=np.zeros(12)
+        self.pool = pool
         self.p = p
         self.env_shape=env_shape
         self.xn = env_shape[0]
@@ -213,7 +232,7 @@ class MapEnv(object):
         #sself.map[self.x0, self.y0] = 0
 
         # reset inverse sensor model, likelihood and pose
-        self.sonar_model = SonarModel(self.map, self.pose, self.hashmap, num_beams=num_beams)
+        self.sonar_model = SonarModel(self.map, self.pose, self.hashmap, self.pool, num_beams=num_beams)
         self.sonar_model.init_sensor()
         self.sonar_model.belief_map[:,:,0]=self.real_2_D_map[:,:,0]
 
@@ -330,11 +349,11 @@ class MapEnv(object):
 
         
         
-        tmp_l_t, tmp_coordinate_storage, update_map=self.sonar_model.readSonarData()
+        tmp_l_t, tmp_coordinate_storage =self.sonar_model.readSonarData()
         new_l_t = tmp_l_t+self.l_t
         self.tmp_coordinate_storage=self.tmp_coordinate_storage+tmp_coordinate_storage
         self.prob=self.logodds_to_prob(self.tmp_coordinate_storage)
-        self.update_map=update_map
+        #self.update_map=update_map
 
         pose_uuv=self.pose.pose_matrix.copy()
 

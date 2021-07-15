@@ -121,11 +121,11 @@ class DDDQN_agent(Agent):
             observation,_,_ = self.env.reset()
             while not terminal:
                 last_observation = observation
-                action = self.make_action(last_observation, test=False)
+                action = self.make_action(last_observation)
                 observation, reward, terminal, _ = self.env.step(action)
                 self.run(last_observation, action, reward, terminal, observation)
 
-    def make_action(self, observation, test=True):
+    def make_action(self, observation, test=False):
         """
         ***Add random action to avoid the testing model stucks under certain situation***
         Input:
@@ -136,7 +136,7 @@ class DDDQN_agent(Agent):
                 the predicted action from trained model
         """
         if not test:
-            if self.epsilon >= random.random() or self.t < self.initial_replay_size:
+            if self.epsilon >= random.random():# or self.t < self.initial_replay_size:
                 action = random.randrange(self.num_actions)
             else:
                 action =np.argmax(self.q_network.predict([np.expand_dims(observation[0], axis=0), np.expand_dims(observation[1][:3], axis=0),np.expand_dims(observation[1][3:], axis=0),  self.dummy_input])[0])
@@ -166,28 +166,35 @@ class DDDQN_agent(Agent):
     def build_network(self):
         input_position= Input(shape=(3))
         input_pose= Input(shape=(9))
-        hidden_feature_pos = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(input_pose)
-        hidden_feature_pose1 = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(hidden_feature_pos)
+        hidden_feature_pos = Dense(9, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(input_pose)
+        hidden_feature_pose1 = Dense(9, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(hidden_feature_pos)
 
-        hidden_feature_position = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(input_position)
-        hidden_feature_position = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(hidden_feature_position)
-        comb_pose = Concatenate()([hidden_feature_pose1, hidden_feature_position])
+        hidden_feature_position = Dense(3, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(input_position)
+        #hidden_feature_position = Dense(3, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(hidden_feature_position)
 
-        comb_pose1 = Dense(1024, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(comb_pose)
-        comb_pose2 = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(comb_pose1)
 
 
         input_frame = Input(shape=(self.frame_x, self.frame_y,3))
+        high= Lambda(lambda x: x[:,:,:,2])(input_frame)
+        flat_hight= Flatten()(high)
+        comb_pose3 = Concatenate()([flat_hight, hidden_feature_position])
+        boundings = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(comb_pose3)
+        #comb_pose2= Dense(512,activation=tf.keras.layers.LeakyReLU(alpha=0.01))(boundings)
+
+        comb_pose = Concatenate()([hidden_feature_pose1, boundings])
+
+        comb_pose1 = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(comb_pose)
+        #comb_pose2 = Dense(12, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(comb_pose1)
+	
         action_one_hot = Input(shape=(self.num_actions,))
-        conv1 = Conv2D(128, (4, 4), strides=(2, 2), activation=tf.keras.layers.LeakyReLU(alpha=0.01))(input_frame)
-        conv2 = Conv2D(128, (4, 4), strides=(2, 2), activation=tf.keras.layers.LeakyReLU(alpha=0.01))(conv1)
-        conv3 = Conv2D(256, (4, 4), strides=(2, 2), activation=tf.keras.layers.LeakyReLU(alpha=0.01))(conv2)
+        conv1 = Conv2D(96, (6, 6), strides=(3, 3),  padding="valid", activation=tf.keras.layers.LeakyReLU(alpha=0.01))(input_frame)
+        conv2 = Conv2D(128, (4, 4), strides=(2, 2), padding="valid", activation=tf.keras.layers.LeakyReLU(alpha=0.01))(conv1)
+        conv3 = Conv2D(256, (4, 4), strides=(2, 2), padding="valid", activation=tf.keras.layers.LeakyReLU(alpha=0.01))(conv2)
         flat_feature = Flatten()(conv3)
         hidden_feature = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(flat_feature)
-        combine= Concatenate()([hidden_feature, comb_pose2])
+        combine= Concatenate()([hidden_feature, comb_pose1])
         hidden_feature_comb=Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(combine)
-        hidden_feature_comb=Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(hidden_feature_comb)
-
+        #hidden_feature_comb=Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01))(hidden_feature_comb)
 
         if True:#self.dueling:
             value_hidden = Dense(512, activation=tf.keras.layers.LeakyReLU(alpha=0.01), name = 'value_fc')(hidden_feature_comb)

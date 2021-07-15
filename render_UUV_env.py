@@ -149,7 +149,7 @@ def init_env():
 
     return fig, uuv, frame, frame_debug
 
-def init_render(args, env_shape=[64, 64, 32], num_beams=15):
+def init_render(args, env_shape=[48, 48, 32], num_beams=15):
     Env=MapEnv(env_shape)
     global obs
     obs, voxelVis, sensor_matrix = Env.reset(num_beams)
